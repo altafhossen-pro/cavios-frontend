@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import CountdownTimer from "../common/Countdown";
 import { useContextElement } from "@/context/Context";
+import { formatPrice } from "@/config/currency";
 export default function ProductCard1({
   product,
   gridClass = "",
@@ -12,7 +13,7 @@ export default function ProductCard1({
   radiusClass = "",
 }) {
   // Ensure we always have a valid image URL
-  const defaultImage = '/images/products/product1.jpg';
+  const defaultImage = '/images/logo/logo.svg';
   const mainImage = product.imgSrc && product.imgSrc.trim() !== '' 
     ? product.imgSrc 
     : defaultImage;
@@ -51,7 +52,7 @@ export default function ProductCard1({
           isNotImageRatio ? "aspect-ratio-0" : ""
         } ${radiusClass} `}
       >
-        <Link href={`/product-detail/${product.id}`} className="product-img">
+        <Link href={`/product/${product.slug || product.id}`} className="product-img">
           <Image
             className="lazyload img-product"
             src={currentImage || defaultImage}
@@ -263,14 +264,14 @@ export default function ProductCard1({
         </div>
       </div>
       <div className="card-product-info">
-        <Link href={`/product-detail/${product.id}`} className="title link">
+        <Link href={`/product/${product.slug || product.id}`} className="title link">
           {product.title}
         </Link>
         <span className="price">
           {product.oldPrice && (
-            <span className="old-price">${product.oldPrice.toFixed(2)}</span>
+            <span className="old-price">{formatPrice(product.oldPrice)}</span>
           )}{" "}
-          ${product.price?.toFixed(2)}
+          {formatPrice(product.price || 0)}
         </span>
         {product.colors && product.colors.length > 0 && (
           <ul className="list-color-product">

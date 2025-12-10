@@ -1,65 +1,109 @@
 "use client";
-import React from "react";
+import React, { useState, useMemo } from "react";
 import Image from "next/image";
 import ReviewSorting from "./ReviewSorting";
-export default function Reviews() {
+
+export default function Reviews({ product }) {
+  // Static fake reviews data - Commented out for now, ready for dynamic data
+  // When API is ready, replace this with actual API call
+  const staticReviews = [
+    // {
+    //   id: 1,
+    //   userName: "John Doe",
+    //   title: "Superb quality apparel that exceeds expectations",
+    //   comment: "Great theme - we were looking for a theme with lots of built in features and flexibility and this was perfect. We expected to need to employ a developer to add a few finishing touches. But we actually managed to do everything ourselves. We did have one small query and the support given was swift and helpful.",
+    //   rating: 5,
+    //   date: "1 days ago",
+    //   userImage: "/images/avatar/user-default.jpg"
+    // },
+    // {
+    //   id: 2,
+    //   userName: "Jane Smith",
+    //   title: "Excellent product quality",
+    //   comment: "Very satisfied with the purchase. The quality is outstanding and delivery was fast.",
+    //   rating: 5,
+    //   date: "3 days ago",
+    //   userImage: "/images/avatar/user-default.jpg"
+    // },
+    // {
+    //   id: 3,
+    //   userName: "Mike Johnson",
+    //   title: "Good value for money",
+    //   comment: "The product met my expectations. Good quality and reasonable price.",
+    //   rating: 4,
+    //   date: "5 days ago",
+    //   userImage: "/images/avatar/user-default.jpg"
+    // }
+  ];
+
+  const [reviews] = useState(staticReviews);
+  
+  // Calculate average rating and rating distribution
+  const ratingStats = useMemo(() => {
+    if (reviews.length === 0) {
+      return {
+        average: 0,
+        total: 0,
+        distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+      };
+    }
+    
+    const total = reviews.length;
+    const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+    const average = (sum / total).toFixed(1);
+    
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    reviews.forEach(review => {
+      distribution[review.rating] = (distribution[review.rating] || 0) + 1;
+    });
+    
+    return { average, total, distribution };
+  }, [reviews]);
+
+  const renderStars = (rating) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <i
+        key={i}
+        className={`icon icon-star ${i < rating ? "" : "empty"}`}
+        style={i < rating ? {} : { opacity: 0.3 }}
+      />
+    ));
+  };
+
+  const getRatingPercentage = (count) => {
+    if (ratingStats.total === 0) return 0;
+    return ((count / ratingStats.total) * 100).toFixed(2);
+  };
+
   return (
     <>
       <div className="tab-reviews-heading">
         {" "}
         <div className="top">
           <div className="text-center">
-            <div className="number title-display">4.9</div>
-            <div className="list-star">
-              <i className="icon icon-star" />
-              <i className="icon icon-star" />
-              <i className="icon icon-star" />
-              <i className="icon icon-star" />
-              <i className="icon icon-star" />
+            <div className="number title-display">
+              {ratingStats.average || "0.0"}
             </div>
-            <p>(168 Ratings)</p>
+            <div className="list-star">
+              {renderStars(Math.round(parseFloat(ratingStats.average) || 0))}
+            </div>
+            <p>({ratingStats.total} {ratingStats.total === 1 ? "Rating" : "Ratings"})</p>
           </div>
           <div className="rating-score">
-            <div className="item">
-              <div className="number-1 text-caption-1">5</div>
-              <i className="icon icon-star" />
-              <div className="line-bg">
-                <div style={{ width: "94.67%" }} />
-              </div>
-              <div className="number-2 text-caption-1">59</div>
-            </div>
-            <div className="item">
-              <div className="number-1 text-caption-1">4</div>
-              <i className="icon icon-star" />
-              <div className="line-bg">
-                <div style={{ width: "60%" }} />
-              </div>
-              <div className="number-2 text-caption-1">46</div>
-            </div>
-            <div className="item">
-              <div className="number-1 text-caption-1">3</div>
-              <i className="icon icon-star" />
-              <div className="line-bg">
-                <div style={{ width: "0%" }} />
-              </div>
-              <div className="number-2 text-caption-1">0</div>
-            </div>
-            <div className="item">
-              <div className="number-1 text-caption-1">2</div>
-              <i className="icon icon-star" />
-              <div className="line-bg">
-                <div style={{ width: "0%" }} />
-              </div>
-              <div className="number-2 text-caption-1">0</div>
-            </div>
-            <div className="item">
-              <div className="number-1 text-caption-1">1</div>
-              <i className="icon icon-star" />
-              <div className="line-bg">
-                <div style={{ width: "0%" }} />
-              </div>
-              <div className="number-2 text-caption-1">0</div>
-            </div>
+            {[5, 4, 3, 2, 1].map((star) => {
+              const count = ratingStats.distribution[star] || 0;
+              const percentage = getRatingPercentage(count);
+              return (
+                <div key={star} className="item">
+                  <div className="number-1 text-caption-1">{star}</div>
+                  <i className="icon icon-star" />
+                  <div className="line-bg">
+                    <div style={{ width: `${percentage}%` }} />
+                  </div>
+                  <div className="number-2 text-caption-1">{count}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
         <div>
@@ -73,100 +117,60 @@ export default function Reviews() {
       </div>
       <div className="reply-comment style-1 cancel-review-wrap">
         <div className="d-flex mb_24 gap-20 align-items-center justify-content-between flex-wrap">
-          <h4 className="">03 Comments</h4>
-          <div className="d-flex align-items-center gap-12">
-            <div className="text-caption-1">Sort by:</div>
-            <ReviewSorting />
-          </div>
+          <h4 className="">
+            {reviews.length} {reviews.length === 1 ? "Comment" : "Comments"}
+          </h4>
+          {reviews.length > 0 && (
+            <div className="d-flex align-items-center gap-12">
+              <div className="text-caption-1">Sort by:</div>
+              <ReviewSorting />
+            </div>
+          )}
         </div>
-        <div className="reply-comment-wrap">
-          <div className="reply-comment-item">
-            <div className="user">
-              <div className="image">
-                <Image
-                  alt=""
-                  src="/images/avatar/user-default.jpg"
-                  width={120}
-                  height={120}
-                />
-              </div>
-              <div>
-                <h6>
-                  <a href="#" className="link">
-                    Superb quality apparel that exceeds expectations
-                  </a>
-                </h6>
-                <div className="day text-secondary-2 text-caption-1">
-                  1 days ago &nbsp;&nbsp;&nbsp;-
-                </div>
-              </div>
-            </div>
-            <p className="text-secondary">
-              Great theme - we were looking for a theme with lots of built in
-              features and flexibility and this was perfect. We expected to need
-              to employ a developer to add a few finishing touches. But we
-              actually managed to do everything ourselves. We did have one small
-              query and the support given was swift and helpful.
+        {reviews.length === 0 ? (
+          <div className="text-center" style={{ padding: "40px 20px" }}>
+            <p className="text-secondary" style={{ fontSize: "16px" }}>
+              No reviews found for this product.
+            </p>
+            <p className="text-secondary" style={{ fontSize: "14px", marginTop: "10px" }}>
+              Be the first to review this product!
             </p>
           </div>
-          <div className="reply-comment-item type-reply">
-            <div className="user">
-              <div className="image">
-                <Image
-                  alt=""
-                  src="/images/avatar/user-cavios.jpg"
-                  width={104}
-                  height={104}
-                />
-              </div>
-              <div>
-                <h6>
-                  <a href="#" className="link">
-                    Reply from Cavios
-                  </a>
-                </h6>
-                <div className="day text-secondary-2 text-caption-1">
-                  1 days ago &nbsp;&nbsp;&nbsp;-
+        ) : (
+          <div className="reply-comment-wrap">
+            {reviews.map((review) => (
+              <div key={review.id} className="reply-comment-item">
+                <div className="user">
+                  <div className="image">
+                    <Image
+                      alt={review.userName}
+                      src={review.userImage || "/images/avatar/user-default.jpg"}
+                      width={120}
+                      height={120}
+                      onError={(e) => {
+                        e.target.src = "/images/avatar/user-default.jpg";
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <h6>
+                      <a href="#" className="link">
+                        {review.title}
+                      </a>
+                    </h6>
+                    <div className="day text-secondary-2 text-caption-1">
+                      {review.date} &nbsp;&nbsp;&nbsp;-
+                    </div>
+                    <div className="list-star mt-2">
+                      {renderStars(review.rating)}
+                    </div>
+                  </div>
                 </div>
+                <p className="text-secondary">{review.comment}</p>
               </div>
-            </div>
-            <p className="text-secondary">
-              We love to hear it! Part of what we love most about Cavios is how
-              much it empowers store owners like yourself to build a beautiful
-              website without having to hire a developer :) Thank you for this
-              fantastic review!
-            </p>
+            ))}
           </div>
-          <div className="reply-comment-item">
-            <div className="user">
-              <div className="image">
-                <Image
-                  alt=""
-                  src="/images/avatar/user-default.jpg"
-                  width={120}
-                  height={120}
-                />
-              </div>
-              <div>
-                <h6>
-                  <a href="#" className="link">
-                    Superb quality apparel that exceeds expectations
-                  </a>
-                </h6>
-                <div className="day text-secondary-2 text-caption-1">
-                  1 days ago &nbsp;&nbsp;&nbsp;-
-                </div>
-              </div>
-            </div>
-            <p className="text-secondary">
-              Great theme - we were looking for a theme with lots of built in
-              features and flexibility and this was perfect. We expected to need
-              to employ a developer to add a few finishing touches. But we
-              actually managed to do everything ourselves. We did have one small
-              query and the support given was swift and helpful.
-            </p>
-          </div>
-        </div>
+        )}
       </div>
       <form
         className="form-write-review write-review-wrap"

@@ -72,7 +72,8 @@ export default function AccountSidebar() {
                   Your Orders
                 </Link>
               </li>
-              <li>
+              {/* My Address - Commented out as not needed */}
+              {/* <li>
                 <Link
                   href={`/my-account-address`}
                   className="my-account-nav-item"
@@ -101,8 +102,8 @@ export default function AccountSidebar() {
                   </svg>
                   My Address
                 </Link>
-              </li>
-              <li>
+              </li> */}
+              <li className="mt-4">
                 <Link href={`/login`} className="my-account-nav-item">
                   <svg
                     width={24}

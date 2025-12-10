@@ -1,5 +1,6 @@
 import Link from "next/link";
 import React from "react";
+import WishlistLength from "../common/WishlistLength";
 
 export default function ToolbarBottom() {
   return (
@@ -84,7 +85,9 @@ export default function ToolbarBottom() {
                 fill="#4D4E4F"
               />
             </svg>
-            {/* <div class="toolbar-count">1</div> */}
+            <div className="toolbar-count">
+              <WishlistLength />
+            </div>
           </div>
           <div className="toolbar-label">Wishlist</div>
         </a>

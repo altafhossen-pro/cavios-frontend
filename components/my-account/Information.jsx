@@ -1,10 +1,49 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useContextElement } from "@/context/Context";
+import { updateProfile, changePassword } from "@/features/auth/api/authApi";
 
 export default function Information() {
+  const { user, setUserAndToken, isLoadingUser } = useContextElement();
+  
+  // Form states
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  
+  // Password states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  
+  // Password validation states
+  const [passwordErrors, setPasswordErrors] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  
+  // UI states
   const [passwordType, setPasswordType] = useState("password");
   const [confirmPasswordType, setConfirmPasswordType] = useState("password");
   const [newPasswordType, setNewPasswordType] = useState("password");
+  
+  // Loading and messages
+  const [loading, setLoading] = useState(false);
+  const [updateProfileLoading, setUpdateProfileLoading] = useState(false);
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  
+  // Load user data on mount
+  useEffect(() => {
+    if (user) {
+      setName(user.name || "");
+      setEmail(user.email || "");
+      setPhone(user.phone || "");
+    }
+  }, [user]);
 
   const togglePassword = () => {
     setPasswordType((prevType) =>
@@ -22,12 +61,313 @@ export default function Information() {
       prevType === "password" ? "text" : "password"
     );
   };
+
+  // Real-time validation for new password
+  const validateNewPassword = (value) => {
+    if (!value) {
+      return "";
+    }
+    if (value.length < 6) {
+      return "Password must be at least 6 characters";
+    }
+    return "";
+  };
+
+  // Real-time validation for confirm password
+  const validateConfirmPassword = (value) => {
+    if (!value) {
+      return "";
+    }
+    if (value !== newPassword) {
+      return "Passwords do not match";
+    }
+    return "";
+  };
+
+  // Handle new password change with validation
+  const handleNewPasswordChange = (e) => {
+    const value = e.target.value;
+    setNewPassword(value);
+    
+    // Validate new password
+    const newPasswordError = validateNewPassword(value);
+    setPasswordErrors((prev) => ({
+      ...prev,
+      newPassword: newPasswordError,
+    }));
+
+    // Re-validate confirm password if it has value
+    if (confirmPassword) {
+      const confirmPasswordError = validateConfirmPassword(confirmPassword);
+      setPasswordErrors((prev) => ({
+        ...prev,
+        confirmPassword: confirmPasswordError,
+      }));
+    }
+  };
+
+  // Handle confirm password change with validation
+  const handleConfirmPasswordChange = (e) => {
+    const value = e.target.value;
+    setConfirmPassword(value);
+    
+    // Validate confirm password
+    const confirmPasswordError = validateConfirmPassword(value);
+    setPasswordErrors((prev) => ({
+      ...prev,
+      confirmPassword: confirmPasswordError,
+    }));
+  };
+
+  // Check if password form is valid
+  const isPasswordFormValid = () => {
+    return (
+      currentPassword &&
+      newPassword &&
+      confirmPassword &&
+      !passwordErrors.newPassword &&
+      !passwordErrors.confirmPassword &&
+      newPassword.length >= 6 &&
+      newPassword === confirmPassword
+    );
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    
+    if (!name) {
+      setError("Name is required");
+      return;
+    }
+    
+    setUpdateProfileLoading(true);
+    const response = await updateProfile({
+      name,
+      ...(phone && { phone }),
+    });
+    setUpdateProfileLoading(false);
+    
+    if (response.success && response.data) {
+      setSuccess("Profile updated successfully!");
+      // Update user in context
+      setUserAndToken(response.data, null); // Token remains same
+      // Clear form
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+    } else {
+      setError(response.message || "Failed to update profile");
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    
+    // Validate all fields
+    if (!currentPassword) {
+      setPasswordErrors((prev) => ({
+        ...prev,
+        currentPassword: "Current password is required",
+      }));
+      return;
+    }
+    
+    if (!newPassword) {
+      setPasswordErrors((prev) => ({
+        ...prev,
+        newPassword: "New password is required",
+      }));
+      return;
+    }
+    
+    if (!confirmPassword) {
+      setPasswordErrors((prev) => ({
+        ...prev,
+        confirmPassword: "Please confirm your password",
+      }));
+      return;
+    }
+    
+    // Check if form is valid
+    if (!isPasswordFormValid()) {
+      setError("Please fix the errors before submitting");
+      setPasswordSuccess("");
+      return;
+    }
+    
+    setPasswordSuccess("");
+    setChangePasswordLoading(true);
+    const response = await changePassword(currentPassword, newPassword);
+    setChangePasswordLoading(false);
+    
+    if (response.success) {
+      setSuccess("Password changed successfully!");
+      setPasswordSuccess("Password changed successfully!");
+      // Clear password fields and errors
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordErrors({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setTimeout(() => {
+        setSuccess("");
+        setPasswordSuccess("");
+      }, 5000);
+    } else {
+      setError(response.message || "Failed to change password");
+      setPasswordSuccess("");
+      // If current password is wrong, show error
+      if (response.message?.toLowerCase().includes("current password") || 
+          response.message?.toLowerCase().includes("incorrect")) {
+        setPasswordErrors((prev) => ({
+          ...prev,
+          currentPassword: response.message || "Current password is incorrect",
+        }));
+      }
+    }
+  };
+
+  // Loading skeleton for information
+  if (isLoadingUser) {
+    return (
+      <div className="my-account-content">
+        <div className="account-details">
+          <div className="account-info">
+            <h5 className="title">Information</h5>
+            <div className="cols mb_20">
+              <fieldset>
+                <div
+                  className="skeleton-loader"
+                  style={{
+                    width: '100%',
+                    height: '48px',
+                    borderRadius: '4px'
+                  }}
+                />
+              </fieldset>
+              <fieldset>
+                <div
+                  className="skeleton-loader"
+                  style={{
+                    width: '100%',
+                    height: '48px',
+                    borderRadius: '4px'
+                  }}
+                />
+              </fieldset>
+            </div>
+            <div className="cols mb_20">
+              <fieldset>
+                <div
+                  className="skeleton-loader"
+                  style={{
+                    width: '100%',
+                    height: '48px',
+                    borderRadius: '4px'
+                  }}
+                />
+              </fieldset>
+            </div>
+          </div>
+          <div className="button-submit">
+            <div
+              className="skeleton-loader"
+              style={{
+                width: '100%',
+                height: '48px',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+        </div>
+        <div className="account-details" style={{ marginTop: '30px' }}>
+          <div className="account-password">
+            <h5 className="title">Change Password</h5>
+            {[1, 2, 3].map((item) => (
+              <fieldset key={item} className="position-relative password-item mb_20">
+                <div
+                  className="skeleton-loader"
+                  style={{
+                    width: '100%',
+                    height: '48px',
+                    borderRadius: '4px'
+                  }}
+                />
+              </fieldset>
+            ))}
+          </div>
+          <div className="button-submit">
+            <div
+              className="skeleton-loader"
+              style={{
+                width: '100%',
+                height: '48px',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+        </div>
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            .skeleton-loader {
+              background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+              background-size: 200% 100%;
+              animation: shimmer 1.5s infinite;
+            }
+            @keyframes shimmer {
+              0% {
+                background-position: -200% 0;
+              }
+              100% {
+                background-position: 200% 0;
+              }
+            }
+          `
+        }} />
+      </div>
+    );
+  }
+
   return (
     <div className="my-account-content">
+      {/* Error/Success Messages */}
+      {error && (
+        <div style={{ 
+          padding: '12px', 
+          backgroundColor: '#fee', 
+          color: '#c33', 
+          borderRadius: '4px', 
+          marginBottom: '20px',
+          fontSize: '14px'
+        }}>
+          {error}
+        </div>
+      )}
+      {success && (
+        <div style={{ 
+          padding: '12px', 
+          backgroundColor: '#efe', 
+          color: '#3c3', 
+          borderRadius: '4px', 
+          marginBottom: '20px',
+          fontSize: '14px'
+        }}>
+          {success}
+        </div>
+      )}
+
       <div className="account-details">
         <form
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={handleUpdateProfile}
           className="form-account-details form-has-password"
+          style={{ gap: '0px' }}
         >
           <div className="account-info">
             <h5 className="title">Information</h5>
@@ -36,204 +376,105 @@ export default function Information() {
                 <input
                   className=""
                   type="text"
-                  placeholder="First Name*"
-                  name="text"
-                  tabIndex={2}
-                  defaultValue="Tony"
+                  placeholder="Full Name*"
+                  name="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={updateProfileLoading}
                   aria-required="true"
                   required
                 />
               </fieldset>
-              <fieldset className="">
-                <input
-                  className=""
-                  type="text"
-                  placeholder="Last Name*"
-                  name="text"
-                  tabIndex={2}
-                  defaultValue="Nguyen"
-                  aria-required="true"
-                  required
-                />
-              </fieldset>
-            </div>
-            <div className="cols mb_20">
               <fieldset className="">
                 <input
                   className=""
                   type="email"
-                  placeholder="Username or email address*"
+                  placeholder="Email address*"
                   name="email"
-                  tabIndex={2}
-                  defaultValue="cavios@gmail.com"
+                  value={email}
+                  disabled
                   aria-required="true"
-                  required
+                  style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
                 />
               </fieldset>
-              <fieldset className="">
+            </div>
+            <div className="cols" style={{ marginBottom: '0' }}>
+              <fieldset className="" style={{ marginBottom: '0' }}>
                 <input
                   className=""
-                  type="text"
-                  placeholder="Phone*"
-                  name="text"
-                  tabIndex={2}
-                  defaultValue="(+12) 345 678 910"
-                  aria-required="true"
-                  required
+                  type="tel"
+                  placeholder="Phone Number (Optional)"
+                  name="phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={updateProfileLoading}
                 />
               </fieldset>
             </div>
-            <div className="tf-select">
-              <select
-                className="text-title"
-                id="country"
-                name="address[country]"
-                data-default=""
-              >
-                <option
-                  value="Australia"
-                  data-provinces="[['Australian Capital Territory','Australian Capital Territory'],['New South Wales','New South Wales'],['Northern Territory','Northern Territory'],['Queensland','Queensland'],['South Australia','South Australia'],['Tasmania','Tasmania'],['Victoria','Victoria'],['Western Australia','Western Australia']]"
-                >
-                  Australia
-                </option>
-                <option value="Austria" data-provinces="[]">
-                  Austria
-                </option>
-                <option value="Belgium" data-provinces="[]">
-                  Belgium
-                </option>
-                <option
-                  value="Canada"
-                  data-provinces="[['Alberta','Alberta'],['British Columbia','British Columbia'],['Manitoba','Manitoba'],['New Brunswick','New Brunswick'],['Newfoundland and Labrador','Newfoundland and Labrador'],['Northwest Territories','Northwest Territories'],['Nova Scotia','Nova Scotia'],['Nunavut','Nunavut'],['Ontario','Ontario'],['Prince Edward Island','Prince Edward Island'],['Quebec','Quebec'],['Saskatchewan','Saskatchewan'],['Yukon','Yukon']]"
-                >
-                  Canada
-                </option>
-                <option value="Czech Republic" data-provinces="[]">
-                  Czechia
-                </option>
-                <option value="Denmark" data-provinces="[]">
-                  Denmark
-                </option>
-                <option value="Finland" data-provinces="[]">
-                  Finland
-                </option>
-                <option value="France" data-provinces="[]">
-                  France
-                </option>
-                <option value="Germany" data-provinces="[]">
-                  Germany
-                </option>
-                <option
-                  value="Hong Kong"
-                  data-provinces="[['Hong Kong Island','Hong Kong Island'],['Kowloon','Kowloon'],['New Territories','New Territories']]"
-                >
-                  Hong Kong SAR
-                </option>
-                <option
-                  value="Ireland"
-                  data-provinces="[['Carlow','Carlow'],['Cavan','Cavan'],['Clare','Clare'],['Cork','Cork'],['Donegal','Donegal'],['Dublin','Dublin'],['Galway','Galway'],['Kerry','Kerry'],['Kildare','Kildare'],['Kilkenny','Kilkenny'],['Laois','Laois'],['Leitrim','Leitrim'],['Limerick','Limerick'],['Longford','Longford'],['Louth','Louth'],['Mayo','Mayo'],['Meath','Meath'],['Monaghan','Monaghan'],['Offaly','Offaly'],['Roscommon','Roscommon'],['Sligo','Sligo'],['Tipperary','Tipperary'],['Waterford','Waterford'],['Westmeath','Westmeath'],['Wexford','Wexford'],['Wicklow','Wicklow']]"
-                >
-                  Ireland
-                </option>
-                <option value="Israel" data-provinces="[]">
-                  Israel
-                </option>
-                <option
-                  value="Italy"
-                  data-provinces="[['Agrigento','Agrigento'],['Alessandria','Alessandria'],['Ancona','Ancona'],['Aosta','Aosta Valley'],['Arezzo','Arezzo'],['Ascoli Piceno','Ascoli Piceno'],['Asti','Asti'],['Avellino','Avellino'],['Bari','Bari'],['Barletta-Andria-Trani','Barletta-Andria-Trani'],['Belluno','Belluno'],['Benevento','Benevento'],['Bergamo','Bergamo'],['Biella','Biella'],['Bologna','Bologna'],['Bolzano','South Tyrol'],['Brescia','Brescia'],['Brindisi','Brindisi'],['Cagliari','Cagliari'],['Caltanissetta','Caltanissetta'],['Campobasso','Campobasso'],['Carbonia-Iglesias','Carbonia-Iglesias'],['Caserta','Caserta'],['Catania','Catania'],['Catanzaro','Catanzaro'],['Chieti','Chieti'],['Como','Como'],['Cosenza','Cosenza'],['Cremona','Cremona'],['Crotone','Crotone'],['Cuneo','Cuneo'],['Enna','Enna'],['Fermo','Fermo'],['Ferrara','Ferrara'],['Firenze','Florence'],['Foggia','Foggia'],['Forlì-Cesena','Forlì-Cesena'],['Frosinone','Frosinone'],['Genova','Genoa'],['Gorizia','Gorizia'],['Grosseto','Grosseto'],['Imperia','Imperia'],['Isernia','Isernia'],['L'Aquila','L’Aquila'],['La Spezia','La Spezia'],['Latina','Latina'],['Lecce','Lecce'],['Lecco','Lecco'],['Livorno','Livorno'],['Lodi','Lodi'],['Lucca','Lucca'],['Macerata','Macerata'],['Mantova','Mantua'],['Massa-Carrara','Massa and Carrara'],['Matera','Matera'],['Medio Campidano','Medio Campidano'],['Messina','Messina'],['Milano','Milan'],['Modena','Modena'],['Monza e Brianza','Monza and Brianza'],['Napoli','Naples'],['Novara','Novara'],['Nuoro','Nuoro'],['Ogliastra','Ogliastra'],['Olbia-Tempio','Olbia-Tempio'],['Oristano','Oristano'],['Padova','Padua'],['Palermo','Palermo'],['Parma','Parma'],['Pavia','Pavia'],['Perugia','Perugia'],['Pesaro e Urbino','Pesaro and Urbino'],['Pescara','Pescara'],['Piacenza','Piacenza'],['Pisa','Pisa'],['Pistoia','Pistoia'],['Pordenone','Pordenone'],['Potenza','Potenza'],['Prato','Prato'],['Ragusa','Ragusa'],['Ravenna','Ravenna'],['Reggio Calabria','Reggio Calabria'],['Reggio Emilia','Reggio Emilia'],['Rieti','Rieti'],['Rimini','Rimini'],['Roma','Rome'],['Rovigo','Rovigo'],['Salerno','Salerno'],['Sassari','Sassari'],['Savona','Savona'],['Siena','Siena'],['Siracusa','Syracuse'],['Sondrio','Sondrio'],['Taranto','Taranto'],['Teramo','Teramo'],['Terni','Terni'],['Torino','Turin'],['Trapani','Trapani'],['Trento','Trentino'],['Treviso','Treviso'],['Trieste','Trieste'],['Udine','Udine'],['Varese','Varese'],['Venezia','Venice'],['Verbano-Cusio-Ossola','Verbano-Cusio-Ossola'],['Vercelli','Vercelli'],['Verona','Verona'],['Vibo Valentia','Vibo Valentia'],['Vicenza','Vicenza'],['Viterbo','Viterbo']]"
-                >
-                  Italy
-                </option>
-                <option
-                  value="Japan"
-                  data-provinces="[['Aichi','Aichi'],['Akita','Akita'],['Aomori','Aomori'],['Chiba','Chiba'],['Ehime','Ehime'],['Fukui','Fukui'],['Fukuoka','Fukuoka'],['Fukushima','Fukushima'],['Gifu','Gifu'],['Gunma','Gunma'],['Hiroshima','Hiroshima'],['Hokkaidō','Hokkaido'],['Hyōgo','Hyogo'],['Ibaraki','Ibaraki'],['Ishikawa','Ishikawa'],['Iwate','Iwate'],['Kagawa','Kagawa'],['Kagoshima','Kagoshima'],['Kanagawa','Kanagawa'],['Kumamoto','Kumamoto'],['Kyōto','Kyoto'],['Kōchi','Kochi'],['Mie','Mie'],['Miyagi','Miyagi'],['Miyazaki','Miyazaki'],['Nagano','Nagano'],['Nagasaki','Nagasaki'],['Nara','Nara'],['Niigata','Niigata'],['Okayama','Okayama'],['Okinawa','Okinawa'],['Saga','Saga'],['Saitama','Saitama'],['Shiga','Shiga'],['Shimane','Shimane'],['Shizuoka','Shizuoka'],['Tochigi','Tochigi'],['Tokushima','Tokushima'],['Tottori','Tottori'],['Toyama','Toyama'],['Tōkyō','Tokyo'],['Wakayama','Wakayama'],['Yamagata','Yamagata'],['Yamaguchi','Yamaguchi'],['Yamanashi','Yamanashi'],['Ōita','Oita'],['Ōsaka','Osaka']]"
-                >
-                  Japan
-                </option>
-                <option
-                  value="Malaysia"
-                  data-provinces="[['Johor','Johor'],['Kedah','Kedah'],['Kelantan','Kelantan'],['Kuala Lumpur','Kuala Lumpur'],['Labuan','Labuan'],['Melaka','Malacca'],['Negeri Sembilan','Negeri Sembilan'],['Pahang','Pahang'],['Penang','Penang'],['Perak','Perak'],['Perlis','Perlis'],['Putrajaya','Putrajaya'],['Sabah','Sabah'],['Sarawak','Sarawak'],['Selangor','Selangor'],['Terengganu','Terengganu']]"
-                >
-                  Malaysia
-                </option>
-                <option value="Netherlands" data-provinces="[]">
-                  Netherlands
-                </option>
-                <option
-                  value="New Zealand"
-                  data-provinces="[['Auckland','Auckland'],['Bay of Plenty','Bay of Plenty'],['Canterbury','Canterbury'],['Chatham Islands','Chatham Islands'],['Gisborne','Gisborne'],['Hawke's Bay','Hawke’s Bay'],['Manawatu-Wanganui','Manawatū-Whanganui'],['Marlborough','Marlborough'],['Nelson','Nelson'],['Northland','Northland'],['Otago','Otago'],['Southland','Southland'],['Taranaki','Taranaki'],['Tasman','Tasman'],['Waikato','Waikato'],['Wellington','Wellington'],['West Coast','West Coast']]"
-                >
-                  New Zealand
-                </option>
-                <option value="Norway" data-provinces="[]">
-                  Norway
-                </option>
-                <option value="Poland" data-provinces="[]">
-                  Poland
-                </option>
-                <option
-                  value="Portugal"
-                  data-provinces="[['Aveiro','Aveiro'],['Açores','Azores'],['Beja','Beja'],['Braga','Braga'],['Bragança','Bragança'],['Castelo Branco','Castelo Branco'],['Coimbra','Coimbra'],['Faro','Faro'],['Guarda','Guarda'],['Leiria','Leiria'],['Lisboa','Lisbon'],['Madeira','Madeira'],['Portalegre','Portalegre'],['Porto','Porto'],['Santarém','Santarém'],['Setúbal','Setúbal'],['Viana do Castelo','Viana do Castelo'],['Vila Real','Vila Real'],['Viseu','Viseu'],['Évora','Évora']]"
-                >
-                  Portugal
-                </option>
-                <option value="Singapore" data-provinces="[]">
-                  Singapore
-                </option>
-                <option
-                  value="South Korea"
-                  data-provinces="[['Busan','Busan'],['Chungbuk','North Chungcheong'],['Chungnam','South Chungcheong'],['Daegu','Daegu'],['Daejeon','Daejeon'],['Gangwon','Gangwon'],['Gwangju','Gwangju City'],['Gyeongbuk','North Gyeongsang'],['Gyeonggi','Gyeonggi'],['Gyeongnam','South Gyeongsang'],['Incheon','Incheon'],['Jeju','Jeju'],['Jeonbuk','North Jeolla'],['Jeonnam','South Jeolla'],['Sejong','Sejong'],['Seoul','Seoul'],['Ulsan','Ulsan']]"
-                >
-                  South Korea
-                </option>
-                <option
-                  value="Spain"
-                  data-provinces="[['A Coruña','A Coruña'],['Albacete','Albacete'],['Alicante','Alicante'],['Almería','Almería'],['Asturias','Asturias Province'],['Badajoz','Badajoz'],['Balears','Balears Province'],['Barcelona','Barcelona'],['Burgos','Burgos'],['Cantabria','Cantabria Province'],['Castellón','Castellón'],['Ceuta','Ceuta'],['Ciudad Real','Ciudad Real'],['Cuenca','Cuenca'],['Cáceres','Cáceres'],['Cádiz','Cádiz'],['Córdoba','Córdoba'],['Girona','Girona'],['Granada','Granada'],['Guadalajara','Guadalajara'],['Guipúzcoa','Gipuzkoa'],['Huelva','Huelva'],['Huesca','Huesca'],['Jaén','Jaén'],['La Rioja','La Rioja Province'],['Las Palmas','Las Palmas'],['León','León'],['Lleida','Lleida'],['Lugo','Lugo'],['Madrid','Madrid Province'],['Melilla','Melilla'],['Murcia','Murcia'],['Málaga','Málaga'],['Navarra','Navarra'],['Ourense','Ourense'],['Palencia','Palencia'],['Pontevedra','Pontevedra'],['Salamanca','Salamanca'],['Santa Cruz de Tenerife','Santa Cruz de Tenerife'],['Segovia','Segovia'],['Sevilla','Seville'],['Soria','Soria'],['Tarragona','Tarragona'],['Teruel','Teruel'],['Toledo','Toledo'],['Valencia','Valencia'],['Valladolid','Valladolid'],['Vizcaya','Biscay'],['Zamora','Zamora'],['Zaragoza','Zaragoza'],['Álava','Álava'],['Ávila','Ávila']]"
-                >
-                  Spain
-                </option>
-                <option value="Sweden" data-provinces="[]">
-                  Sweden
-                </option>
-                <option value="Switzerland" data-provinces="[]">
-                  Switzerland
-                </option>
-                <option
-                  value="United Arab Emirates"
-                  data-provinces="[['Abu Dhabi','Abu Dhabi'],['Ajman','Ajman'],['Dubai','Dubai'],['Fujairah','Fujairah'],['Ras al-Khaimah','Ras al-Khaimah'],['Sharjah','Sharjah'],['Umm al-Quwain','Umm al-Quwain']]"
-                >
-                  United Arab Emirates
-                </option>
-                <option
-                  value="United Kingdom"
-                  data-provinces="[['British Forces','British Forces'],['England','England'],['Northern Ireland','Northern Ireland'],['Scotland','Scotland'],['Wales','Wales']]"
-                >
-                  United Kingdom
-                </option>
-                <option
-                  value="United States"
-                  data-provinces="[['Alabama','Alabama'],['Alaska','Alaska'],['American Samoa','American Samoa'],['Arizona','Arizona'],['Arkansas','Arkansas'],['Armed Forces Americas','Armed Forces Americas'],['Armed Forces Europe','Armed Forces Europe'],['Armed Forces Pacific','Armed Forces Pacific'],['California','California'],['Colorado','Colorado'],['Connecticut','Connecticut'],['Delaware','Delaware'],['District of Columbia','Washington DC'],['Federated States of Micronesia','Micronesia'],['Florida','Florida'],['Georgia','Georgia'],['Guam','Guam'],['Hawaii','Hawaii'],['Idaho','Idaho'],['Illinois','Illinois'],['Indiana','Indiana'],['Iowa','Iowa'],['Kansas','Kansas'],['Kentucky','Kentucky'],['Louisiana','Louisiana'],['Maine','Maine'],['Marshall Islands','Marshall Islands'],['Maryland','Maryland'],['Massachusetts','Massachusetts'],['Michigan','Michigan'],['Minnesota','Minnesota'],['Mississippi','Mississippi'],['Missouri','Missouri'],['Montana','Montana'],['Nebraska','Nebraska'],['Nevada','Nevada'],['New Hampshire','New Hampshire'],['New Jersey','New Jersey'],['New Mexico','New Mexico'],['New York','New York'],['North Carolina','North Carolina'],['North Dakota','North Dakota'],['Northern Mariana Islands','Northern Mariana Islands'],['Ohio','Ohio'],['Oklahoma','Oklahoma'],['Oregon','Oregon'],['Palau','Palau'],['Pennsylvania','Pennsylvania'],['Puerto Rico','Puerto Rico'],['Rhode Island','Rhode Island'],['South Carolina','South Carolina'],['South Dakota','South Dakota'],['Tennessee','Tennessee'],['Texas','Texas'],['Utah','Utah'],['Vermont','Vermont'],['Virgin Islands','U.S. Virgin Islands'],['Virginia','Virginia'],['Washington','Washington'],['West Virginia','West Virginia'],['Wisconsin','Wisconsin'],['Wyoming','Wyoming']]"
-                >
-                  United States
-                </option>
-                <option value="Vietnam" data-provinces="[]">
-                  Vietnam
-                </option>
-              </select>
-            </div>
           </div>
+          <div className="button-submit" style={{ marginTop: '16px' }}>
+            <button 
+              className="tf-btn btn-fill" 
+              type="submit"
+              disabled={updateProfileLoading}
+            >
+              <span className="text text-button">
+                {updateProfileLoading ? "Updating..." : "Update Account"}
+              </span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="account-details mt-5">
+        <form
+          onSubmit={handleChangePassword}
+          className="form-account-details form-has-password"
+          style={{ gap: '16px' }}
+        >
           <div className="account-password">
             <h5 className="title">Change Password</h5>
+            {passwordSuccess && (
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#d4edda',
+                color: '#155724',
+                borderRadius: '4px',
+                marginBottom: '16px',
+                fontSize: '14px',
+                border: '1px solid #c3e6cb',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#155724" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {passwordSuccess}
+              </div>
+            )}
             <fieldset className="position-relative password-item mb_20">
               <input
-                className="input-password"
+                className={`input-password ${passwordErrors.currentPassword ? 'error' : ''}`}
                 type={passwordType}
-                placeholder="Password*"
-                name="password"
-                tabIndex={2}
-                defaultValue=""
+                placeholder="Current Password*"
+                name="currentPassword"
+                value={currentPassword}
+                onChange={(e) => {
+                  setCurrentPassword(e.target.value);
+                  if (passwordErrors.currentPassword) {
+                    setPasswordErrors((prev) => ({
+                      ...prev,
+                      currentPassword: "",
+                    }));
+                  }
+                }}
+                disabled={changePasswordLoading}
                 aria-required="true"
                 required
+                style={{
+                  borderColor: passwordErrors.currentPassword ? '#dc3545' : '',
+                }}
               />
               <span
                 className={`toggle-password ${
@@ -247,17 +488,31 @@ export default function Information() {
                   }-line`}
                 />
               </span>
+              {passwordErrors.currentPassword && (
+                <div style={{
+                  color: '#dc3545',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  marginLeft: '4px'
+                }}>
+                  {passwordErrors.currentPassword}
+                </div>
+              )}
             </fieldset>
             <fieldset className="position-relative password-item mb_20">
               <input
-                className="input-password"
+                className={`input-password ${passwordErrors.newPassword ? 'error' : ''}`}
                 type={newPasswordType}
                 placeholder="New Password*"
                 name="newPassword"
-                tabIndex={2}
-                defaultValue=""
+                value={newPassword}
+                onChange={handleNewPasswordChange}
+                disabled={changePasswordLoading}
                 aria-required="true"
                 required
+                style={{
+                  borderColor: passwordErrors.newPassword ? '#dc3545' : (newPassword && !passwordErrors.newPassword ? '#28a745' : ''),
+                }}
               />
               <span
                 className={`toggle-password ${
@@ -271,17 +526,41 @@ export default function Information() {
                   }-line`}
                 />
               </span>
+              {passwordErrors.newPassword && (
+                <div style={{
+                  color: '#dc3545',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  marginLeft: '4px'
+                }}>
+                  {passwordErrors.newPassword}
+                </div>
+              )}
+              {newPassword && !passwordErrors.newPassword && (
+                <div style={{
+                  color: '#28a745',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  marginLeft: '4px'
+                }}>
+                  ✓ Password is valid
+                </div>
+              )}
             </fieldset>
-            <fieldset className="position-relative password-item">
+            <fieldset className="position-relative password-item" style={{ marginBottom: '0' }}>
               <input
-                className="input-password"
+                className={`input-password ${passwordErrors.confirmPassword ? 'error' : ''}`}
                 type={confirmPasswordType}
                 placeholder="Confirm Password*"
                 name="confirmPassword"
-                tabIndex={2}
-                defaultValue=""
+                value={confirmPassword}
+                onChange={handleConfirmPasswordChange}
+                disabled={changePasswordLoading}
                 aria-required="true"
                 required
+                style={{
+                  borderColor: passwordErrors.confirmPassword ? '#dc3545' : (confirmPassword && !passwordErrors.confirmPassword ? '#28a745' : ''),
+                }}
               />
               <span
                 className={`toggle-password ${
@@ -295,11 +574,41 @@ export default function Information() {
                   }-line`}
                 />
               </span>
+              {passwordErrors.confirmPassword && (
+                <div style={{
+                  color: '#dc3545',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  marginLeft: '4px'
+                }}>
+                  {passwordErrors.confirmPassword}
+                </div>
+              )}
+              {confirmPassword && !passwordErrors.confirmPassword && newPassword === confirmPassword && (
+                <div style={{
+                  color: '#28a745',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  marginLeft: '4px'
+                }}>
+                  ✓ Passwords match
+                </div>
+              )}
             </fieldset>
           </div>
-          <div className="button-submit">
-            <button className="tf-btn btn-fill" type="submit">
-              <span className="text text-button">Update Account</span>
+          <div className="button-submit" style={{ marginTop: '16px' }}>
+            <button 
+              className="tf-btn btn-fill" 
+              type="submit"
+              disabled={changePasswordLoading || !isPasswordFormValid()}
+              style={{
+                opacity: changePasswordLoading || !isPasswordFormValid() ? 0.6 : 1,
+                cursor: changePasswordLoading || !isPasswordFormValid() ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <span className="text text-button">
+                {changePasswordLoading ? "Changing..." : "Change Password"}
+              </span>
             </button>
           </div>
         </form>

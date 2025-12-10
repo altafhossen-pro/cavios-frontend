@@ -1,5 +1,5 @@
 import Footer from "@/components/footers/Footer";
-import Header1 from "@/components/headers/Header1";
+import MainHeader from "@/components/headers/MainHeader";
 
 import Checkout from "@/components/otherPages/Checkout";
 import Link from "next/link";
@@ -8,10 +8,10 @@ import React from "react";
 export default function CheckoutPage() {
   return (
     <>
-      <Header1 />
+      <MainHeader />
       <div
         className="page-title"
-        style={{ backgroundImage: "url(/images/section/page-title.jpg)" }}
+        style={{ backgroundImage: "url(/images/section/page-title.jpg)" , padding :" 40px"}}
       >
         <div className="container">
           <h3 className="heading text-center">Check Out</h3>

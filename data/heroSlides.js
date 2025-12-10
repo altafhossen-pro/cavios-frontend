@@ -1,13 +1,13 @@
 export const slides = [
   {
-    imgSrc: "/images/slider/slider-women1.jpg",
+    imgSrc: "https://www.racksolutions.com/news//app/uploads/AdobeStock_87909563.jpg",
     alt: "fashion-slideshow",
     subheading: "BIKINIS & SWIMSUITS",
     heading: "Flash Sale Madness",
     btnText: "Explore Collection",
   },
   {
-    imgSrc: "/images/slider/slider-women2.jpg",
+    imgSrc: "https://ecdn.dhakatribune.net/contents/cache/images/900x0x1/uploads/dten/2021/04/56-7606981851432853550-n-1619362105063.jpg",
     alt: "fashion-slideshow",
     subheading: "BIKINIS & SWIMSUITS",
     heading: "Find Your\nSignature Style",

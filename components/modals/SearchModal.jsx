@@ -1,22 +1,64 @@
 "use client";
-import React, { useState } from "react";
-
-import { productMain } from "@/data/products";
+import React, { useState, useEffect, useRef } from "react";
 import ProductCard1 from "../productCards/ProductCard1";
-export default function SearchModal() {
-  const [loading, setLoading] = useState(false);
+import { searchProducts } from "@/features/product/api/productApi";
+import { formatProductsForDisplay } from "@/features/product/utils/formatProduct";
 
-  const [loadedItems, setLoadedItems] = useState(productMain.slice(0, 8));
-  const handleLoad = () => {
+export default function SearchModal() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const debounceTimer = useRef(null);
+
+  // Debounced search function
+  useEffect(() => {
+    // Clear previous timer
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    // If search query is empty, clear results
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setHasSearched(false);
+      return;
+    }
+
+    // Set loading state
     setLoading(true);
-    setTimeout(() => {
-      setLoadedItems((pre) => [
-        ...pre,
-        ...productMain.slice(pre.length, pre.length + 4),
-      ]);
-      setLoading(false);
-    }, 1000);
-  };
+    setHasSearched(true);
+
+    // Debounce search - wait 500ms after user stops typing
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const response = await searchProducts({ 
+          search: searchQuery.trim(),
+          limit: 12,
+          page: 1 
+        });
+        
+        if (response.success && response.data) {
+          const formattedProducts = formatProductsForDisplay(response.data);
+          setSearchResults(formattedProducts);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (error) {
+        console.error('Error searching products:', error);
+        setSearchResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 500);
+
+    // Cleanup function
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [searchQuery]);
   return (
     <div className="modal fade modal-search" id="search">
       <div className="modal-dialog modal-dialog-centered">
@@ -28,17 +70,23 @@ export default function SearchModal() {
               data-bs-dismiss="modal"
             />
           </div>
-          <form className="form-search" onSubmit={(e) => e.preventDefault()}>
+          <form 
+            className="form-search" 
+            onSubmit={(e) => {
+              e.preventDefault();
+              // Search is handled by useEffect on searchQuery change
+            }}
+          >
             <fieldset className="text">
               <input
                 type="text"
-                placeholder="Searching..."
+                placeholder="Search products..."
                 className=""
                 name="text"
                 tabIndex={0}
-                defaultValue=""
-                aria-required="true"
-                required
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-required="false"
               />
             </fieldset>
             <button className="" type="submit">
@@ -67,7 +115,34 @@ export default function SearchModal() {
               </svg>
             </button>
           </form>
-          <div>
+          
+          {/* Search Results */}
+          {hasSearched && (
+            <div className="mt-4">
+              {loading ? (
+                <div className="text-center py-4">
+                  <p>Searching...</p>
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div>
+                  <h6 className="mb_16">
+                    Search Results ({searchResults.length})
+                  </h6>
+                  <div className="tf-grid-layout tf-col-2 lg-col-3 xl-col-4">
+                    {searchResults.map((product, i) => (
+                      <ProductCard1 product={product} key={product.id || i} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p>No products found for "{searchQuery}"</p>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Feature keywords Today - Commented out as per requirement */}
+          {/* <div>
             <h5 className="mb_16">Feature keywords Today</h5>
             <ul className="list-tags">
               <li>
@@ -91,18 +166,18 @@ export default function SearchModal() {
                 </a>
               </li>
             </ul>
-          </div>
-          <div>
+          </div> */}
+          {/* Recently viewed products - Commented out as per requirement */}
+          {/* <div>
             <h6 className="mb_16">Recently viewed products</h6>
             <div className="tf-grid-layout tf-col-2 lg-col-3 xl-col-4">
               {loadedItems.map((product, i) => (
                 <ProductCard1 product={product} key={i} />
               ))}
             </div>
-          </div>
-          {/* Load Item */}
-
-          {productMain.length == loadedItems.length ? (
+          </div> */}
+          {/* Load Item - Commented out */}
+          {/* {productMain.length == loadedItems.length ? (
             ""
           ) : (
             <div
@@ -119,7 +194,7 @@ export default function SearchModal() {
                 </span>
               </button>
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </div>

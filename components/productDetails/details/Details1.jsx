@@ -1,14 +1,17 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import Slider1 from "../sliders/Slider1";
-import ColorSelect from "../ColorSelect";
-import SizeSelect from "../SizeSelect";
+import ColorSelect2 from "../ColorSelect2";
+import SizeSelect2 from "../SizeSelect2";
 import QuantitySelect from "../QuantitySelect";
 import Image from "next/image";
 import { useContextElement } from "@/context/Context";
 import ProductStikyBottom from "../ProductStikyBottom";
+import { CURRENCY_SYMBOL, formatPrice } from "@/config/currency";
+
 export default function Details1({ product }) {
-  const [activeColor, setActiveColor] = useState("gray");
+  const [activeColor, setActiveColor] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
   const {
     addProductToCart,
@@ -19,7 +22,323 @@ export default function Details1({ product }) {
     addToCompareItem,
     cartProducts,
     updateQuantity,
+    addVariantToCart,
+    isVariantAddedToCart,
+    getCartItem,
   } = useContextElement();
+
+  // Get variants from product
+  const variants = product?.variants || [];
+
+  // Get all available sizes from variants
+  const getAllSizes = () => {
+    const sizeSet = new Set();
+    variants.forEach(variant => {
+      if (variant.attributes) {
+        const sizeAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'size');
+        if (sizeAttr && sizeAttr.value) {
+          sizeSet.add(sizeAttr.value);
+        }
+      }
+    });
+    return Array.from(sizeSet);
+  };
+
+  // Get colors available for selected size
+  const getColorsForSize = (size) => {
+    if (!size || variants.length === 0) {
+      // If no size selected, return empty array (don't show colors until size is selected)
+      return [];
+    }
+    
+    const colorSet = new Map();
+    variants.forEach(variant => {
+      if (variant.attributes) {
+        const sizeAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'size');
+        const colorAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'color');
+        
+        // If this variant matches the selected size
+        if (sizeAttr && sizeAttr.value === size && colorAttr) {
+          const colorValue = colorAttr.value || colorAttr.displayValue;
+          if (colorValue && !colorSet.has(colorValue)) {
+            // Get variant image for this color
+            let variantImage = product?.imgSrc || product?.featuredImage;
+            if (variant.images && variant.images.length > 0) {
+              const firstImage = variant.images[0];
+              variantImage = typeof firstImage === 'string' ? firstImage : (firstImage.url || variantImage);
+            }
+            
+            colorSet.set(colorValue, {
+              value: colorValue,
+              name: colorValue,
+              displayValue: colorAttr.displayValue || colorValue,
+              hexCode: colorAttr.hexCode || null,
+              bgColor: colorAttr.hexCode || `bg-${colorValue.toLowerCase().replace(/\s+/g, '-')}`,
+              imgSrc: variantImage,
+            });
+          }
+        }
+      }
+    });
+    
+    return Array.from(colorSet.values());
+  };
+
+  const productSizes = getAllSizes();
+
+  // Memoize productColors to prevent unnecessary recalculations
+  // Only recalculate when selectedSize or variants actually change
+  const productColors = useMemo(() => {
+    return getColorsForSize(selectedSize);
+  }, [selectedSize, variants.length, product?.id]);
+
+  // Set default size from first variant
+  useEffect(() => {
+    if (variants.length > 0 && !selectedSize) {
+      const firstVariant = variants[0];
+      if (firstVariant.attributes) {
+        const firstSizeAttr = firstVariant.attributes.find(attr => attr.name.toLowerCase() === 'size');
+        
+        if (firstSizeAttr && firstSizeAttr.value) {
+          setSelectedSize(firstSizeAttr.value);
+        }
+      }
+    }
+  }, [variants]);
+
+  // Use ref to track if we're in the middle of a size change
+  const isSizeChangingRef = useRef(false);
+
+  // Reset color when size changes (only if current color is not available for new size)
+  useEffect(() => {
+    if (!selectedSize) return;
+    
+    isSizeChangingRef.current = true;
+    const colorsForSize = getColorsForSize(selectedSize);
+    
+    if (activeColor) {
+      // Check if current active color exists in new size's colors
+      const currentColorExists = colorsForSize.some(c => {
+        const colorValue = (c.value || c.name || '').toLowerCase().replace(/\s+/g, '-');
+        return colorValue === activeColor;
+      });
+      
+      // Only reset if current color is not available for selected size
+      if (!currentColorExists && colorsForSize.length > 0) {
+        const firstColor = colorsForSize[0];
+        const colorValue = (firstColor.value || firstColor.name || '').toLowerCase().replace(/\s+/g, '-');
+        setActiveColor(colorValue);
+      }
+    } else if (colorsForSize.length > 0) {
+      // If no color selected but size is selected, set first available color
+      const firstColor = colorsForSize[0];
+      const colorValue = (firstColor.value || firstColor.name || '').toLowerCase().replace(/\s+/g, '-');
+      setActiveColor(colorValue);
+    }
+    
+    // Reset flag after a short delay
+    setTimeout(() => {
+      isSizeChangingRef.current = false;
+    }, 100);
+  }, [selectedSize, variants.length, product?.id]);
+
+  // Adjust quantity when variant changes to respect stock limits
+  useEffect(() => {
+    if (selectedVariant && selectedVariant.stockQuantity !== null && selectedVariant.stockQuantity !== undefined) {
+      if (quantity > selectedVariant.stockQuantity) {
+        setQuantity(selectedVariant.stockQuantity);
+      }
+    }
+  }, [selectedVariant]);
+
+  // Initialize active color only on initial load
+  const hasInitializedColorRef = useRef(false);
+  const previousProductColorsRef = useRef([]);
+  const previousProductIdRef = useRef(null);
+  
+  useEffect(() => {
+    // Reset initialization if product changed
+    if (product?.id !== previousProductIdRef.current) {
+      hasInitializedColorRef.current = false;
+      previousProductIdRef.current = product?.id;
+      previousProductColorsRef.current = [];
+    }
+    
+    // Check if productColors actually changed (by comparing length and first color)
+    const colorsChanged = 
+      previousProductColorsRef.current.length !== productColors.length ||
+      (productColors.length > 0 && previousProductColorsRef.current.length > 0 &&
+       (previousProductColorsRef.current[0]?.value || previousProductColorsRef.current[0]?.name) !== 
+       (productColors[0]?.value || productColors[0]?.name));
+    
+    // Only set initial color if:
+    // 1. We have colors
+    // 2. No color is selected
+    // 3. We haven't initialized yet OR we're not in the middle of a size change
+    // 4. Colors actually changed (not just a re-render with same colors)
+    if (productColors.length > 0 && !activeColor && (!hasInitializedColorRef.current || !isSizeChangingRef.current) && colorsChanged) {
+      const firstColor = productColors[0];
+      const colorValue = (firstColor.value || firstColor.name || firstColor.bgColor || 'default')
+        .toLowerCase().replace(/\s+/g, '-');
+      setActiveColor(colorValue);
+      hasInitializedColorRef.current = true;
+    }
+    
+    // Update previous colors reference
+    previousProductColorsRef.current = productColors;
+  }, [productColors, activeColor, product?.id]);
+
+  // Get selected variant based on size and color
+  const getSelectedVariant = () => {
+    if (!selectedSize || !activeColor || variants.length === 0) {
+      return null;
+    }
+    
+    return variants.find(variant => {
+      if (!variant.attributes) return false;
+      
+      const sizeAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'size');
+      const colorAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'color');
+      
+      if (!sizeAttr || !colorAttr) return false;
+      
+      const variantSize = sizeAttr.value;
+      const variantColor = (colorAttr.value || colorAttr.displayValue || '').toLowerCase().replace(/\s+/g, '-');
+      const selectedColorValue = activeColor.toLowerCase().replace(/\s+/g, '-');
+      
+      return variantSize === selectedSize && variantColor === selectedColorValue;
+    });
+  };
+
+  const selectedVariant = getSelectedVariant();
+
+  // Get price from selected variant, or use product price
+  const getVariantPrice = () => {
+    if (selectedVariant) {
+      return {
+        currentPrice: selectedVariant.currentPrice || product.price || 0,
+        originalPrice: selectedVariant.originalPrice || product.oldPrice || null,
+      };
+    }
+    
+    return {
+      currentPrice: product.price || 0,
+      originalPrice: product.oldPrice || null,
+    };
+  };
+
+  const variantPricing = getVariantPrice();
+  const currentPrice = variantPricing.currentPrice || 0;
+  const originalPrice = variantPricing.originalPrice || null;
+
+  // Get all product images: Featured → Variant Images → Gallery Images
+  const getAllProductImages = useMemo(() => {
+    if (!product) return [];
+    
+    // Helper function to format image URL
+    const formatImageUrl = (url) => {
+      if (!url || url === 'null' || url === 'undefined' || url.trim() === '') {
+        return null;
+      }
+      // If it's already a full URL, return as is
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+      // If it's a relative path without leading slash, add it
+      if (!url.startsWith('/')) {
+        return `/${url}`;
+      }
+      return url;
+    };
+    
+    const images = [];
+    const imageMap = new Map(); // To avoid duplicates
+    
+    // 1. Featured Image (first)
+    if (product.featuredImage || product.imgSrc) {
+      const featuredImg = formatImageUrl(product.featuredImage || product.imgSrc);
+      if (featuredImg && !imageMap.has(featuredImg)) {
+        images.push({
+          id: images.length + 1,
+          src: featuredImg,
+          alt: `${product.title || 'Product'} - Featured`,
+          color: "gray",
+          width: 615,
+          height: 615,
+        });
+        imageMap.set(featuredImg, true);
+      }
+    }
+    
+    // 2. Variant Images
+    if (product.variants && product.variants.length > 0) {
+      product.variants.forEach((variant) => {
+        const colorAttr = variant.attributes?.find(attr => attr.name.toLowerCase() === 'color');
+        const colorValue = colorAttr?.value || colorAttr?.displayValue || 'gray';
+        const normalizedColor = colorValue.toLowerCase().replace(/\s+/g, '-');
+        
+        if (variant.images && Array.isArray(variant.images)) {
+          variant.images.forEach((variantImg) => {
+            const imgUrl = typeof variantImg === 'string' 
+              ? variantImg 
+              : (variantImg.url || variantImg.src);
+            const formattedUrl = formatImageUrl(imgUrl);
+            if (formattedUrl && !imageMap.has(formattedUrl)) {
+              images.push({
+                id: images.length + 1,
+                src: formattedUrl,
+                alt: `${product.title || 'Product'} - Variant Image`,
+                color: normalizedColor || "gray",
+                width: 615,
+                height: 615,
+              });
+              imageMap.set(formattedUrl, true);
+            }
+          });
+        }
+      });
+    }
+    
+    // 3. Gallery Images (last)
+    if (product.gallery && Array.isArray(product.gallery) && product.gallery.length > 0) {
+      product.gallery.forEach((galleryImg) => {
+        const imgUrl = typeof galleryImg === 'string' 
+          ? galleryImg 
+          : (galleryImg.url || galleryImg.src);
+        const formattedUrl = formatImageUrl(imgUrl);
+        if (formattedUrl && !imageMap.has(formattedUrl)) {
+          images.push({
+            id: images.length + 1,
+            src: formattedUrl,
+            alt: typeof galleryImg === 'string' 
+              ? `${product.title || 'Product'} - Gallery`
+              : (galleryImg.altText || `${product.title || 'Product'} - Gallery`),
+            color: "gray",
+            width: 615,
+            height: 615,
+          });
+          imageMap.set(formattedUrl, true);
+        }
+      });
+    }
+    
+    // If no images found, use default
+    if (images.length === 0 && product.imgSrc) {
+      const defaultImg = formatImageUrl(product.imgSrc);
+      if (defaultImg) {
+        images.push({
+          id: 1,
+          src: defaultImg,
+          alt: product.title || 'Product',
+          color: "gray",
+          width: 615,
+          height: 615,
+        });
+      }
+    }
+    
+    return images;
+  }, [product]);
 
   return (
     <section className="flat-spacing">
@@ -32,7 +351,8 @@ export default function Details1({ product }) {
                 <Slider1
                   setActiveColor={setActiveColor}
                   activeColor={activeColor}
-                  firstItem={product.imgSrc}
+                  firstItem={product.imgSrc || product.featuredImage}
+                  slideItems={getAllProductImages}
                 />
               </div>
             </div>
@@ -46,7 +366,7 @@ export default function Details1({ product }) {
                     <div className="tf-product-info-name">
                       <div className="text text-btn-uppercase">Clothing</div>
                       <h3 className="name">{product.title}</h3>
-                      <div className="sub">
+                      {/* <div className="sub">
                         <div className="tf-product-info-rate">
                           <div className="list-star">
                             <i className="icon icon-star" />
@@ -65,23 +385,28 @@ export default function Details1({ product }) {
                             18&nbsp;sold in last&nbsp;32&nbsp;hours
                           </div>
                         </div>
-                      </div>
+                      </div> */}
                     </div>
                     <div className="tf-product-info-desc">
                       <div className="tf-product-info-price">
                         <h5 className="price-on-sale font-2">
                           {" "}
-                          ${product.price.toFixed(2)}
+                          {formatPrice(currentPrice)}
                         </h5>
-                        {product.oldPrice ? (
+                        {originalPrice && originalPrice > currentPrice ? (
                           <>
                             <div className="compare-at-price font-2">
                               {" "}
-                              ${product.oldPrice.toFixed(2)}
+                              {formatPrice(originalPrice)}
                             </div>
-                            <div className="badges-on-sale text-btn-uppercase">
-                              -25%
-                            </div>
+                            {(() => {
+                              const salePercentage = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+                              return salePercentage > 0 ? (
+                                <div className="badges-on-sale text-btn-uppercase">
+                                  -{salePercentage}%
+                                </div>
+                              ) : null;
+                            })()}
                           </>
                         ) : (
                           ""
@@ -102,51 +427,120 @@ export default function Details1({ product }) {
                     </div>
                   </div>
                   <div className="tf-product-info-choose-option">
-                    <ColorSelect
-                      setActiveColor={setActiveColor}
-                      activeColor={activeColor}
-                    />
-                    <SizeSelect />
+                    {productSizes.length > 0 && (
+                      <SizeSelect2 
+                        productSizes={productSizes}
+                        selectedSize={selectedSize}
+                        setSelectedSize={setSelectedSize}
+                      />
+                    )}
+                    {productColors.length > 0 && (
+                      <ColorSelect2
+                        activeColor={activeColor}
+                        setActiveColor={setActiveColor}
+                        productColors={productColors}
+                      />
+                    )}
                     <div className="tf-product-info-quantity">
                       <div className="title mb_12">Quantity:</div>
                       <QuantitySelect
                         quantity={
-                          isAddedToCartProducts(product.id)
+                          selectedVariant && isVariantAddedToCart && isVariantAddedToCart(product.id, selectedVariant.sku)
+                            ? (() => {
+                                const cartItem = cartProducts.find(
+                                  (item) => item.productId === String(product.id) && item.variantSku === selectedVariant.sku
+                                );
+                                return cartItem?.quantity || quantity;
+                              })()
+                            : isAddedToCartProducts(product.id)
                             ? cartProducts.filter(
                                 (elm) => elm.id == product.id
                               )[0].quantity
                             : quantity
                         }
                         setQuantity={(qty) => {
-                          if (isAddedToCartProducts(product.id)) {
-                            updateQuantity(product.id, qty);
+                          // Get stock quantity from selected variant
+                          const stockQty = selectedVariant?.stockQuantity;
+                          
+                          // Apply stock limit if available
+                          let finalQty = qty;
+                          if (stockQty !== null && stockQty !== undefined && qty > stockQty) {
+                            finalQty = stockQty;
+                          }
+                          
+                          if (selectedVariant && isVariantAddedToCart && isVariantAddedToCart(product.id, selectedVariant.sku)) {
+                            const cartItem = cartProducts.find(
+                              (item) => item.productId === String(product.id) && item.variantSku === selectedVariant.sku
+                            );
+                            if (cartItem) {
+                              updateQuantity(cartItem.cartItemId, finalQty);
+                            }
+                          } else if (isAddedToCartProducts(product.id)) {
+                            updateQuantity(product.id, finalQty);
                           } else {
-                            setQuantity(qty);
+                            setQuantity(finalQty);
                           }
                         }}
+                        maxQuantity={selectedVariant?.stockQuantity || null}
                       />
                     </div>
                     <div>
                       <div className="tf-product-info-by-btn mb_10">
                         <a
-                          onClick={() => addProductToCart(product.id, quantity)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            // If we have variants and both size and color are selected, use variant-based cart
+                            if (selectedVariant && selectedSize && activeColor && addVariantToCart) {
+                              const sizeAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'size');
+                              const colorAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'color');
+                              
+                              addVariantToCart({
+                                productId: String(product.id),
+                                productSlug: product.slug || '',
+                                productTitle: product.title || '',
+                                productImage: product.featuredImage || product.imgSrc || '',
+                                variantSku: selectedVariant.sku,
+                                size: sizeAttr?.value || selectedSize,
+                                color: colorAttr?.value || colorAttr?.displayValue || activeColor,
+                                colorHexCode: colorAttr?.hexCode || '',
+                                price: currentPrice,
+                                originalPrice: originalPrice,
+                                quantity: quantity,
+                                stockQuantity: selectedVariant.stockQuantity || null,
+                              }, true);
+                            } else if (selectedSize && activeColor) {
+                              // Size and color selected but no variant found - show alert
+                              alert('Please select a valid size and color combination');
+                            } else {
+                              // Fallback to regular add to cart
+                              addProductToCart(product.id, quantity);
+                            }
+                          }}
                           className="btn-style-2 flex-grow-1 text-btn-uppercase fw-6 btn-add-to-cart"
                         >
                           <span>
-                            {isAddedToCartProducts(product.id)
+                            {selectedVariant && isVariantAddedToCart && isVariantAddedToCart(product.id, selectedVariant.sku)
+                              ? "Already Added"
+                              : isAddedToCartProducts(product.id)
                               ? "Already Added"
                               : "Add to cart -"}
                           </span>
                           <span className="tf-qty-price total-price">
-                            $
-                            {isAddedToCartProducts(product.id)
-                              ? (
+                            {selectedVariant && isVariantAddedToCart && isVariantAddedToCart(product.id, selectedVariant.sku)
+                              ? (() => {
+                                  const cartItem = cartProducts.find(
+                                    (item) => item.productId === String(product.id) && item.variantSku === selectedVariant.sku
+                                  );
+                                  return formatPrice(currentPrice * (cartItem?.quantity || quantity));
+                                })()
+                              : isAddedToCartProducts(product.id)
+                              ? formatPrice(
                                   product.price *
                                   cartProducts.filter(
                                     (elm) => elm.id == product.id
                                   )[0].quantity
-                                ).toFixed(2)
-                              : (product.price * quantity).toFixed(2)}{" "}
+                                )
+                              : formatPrice(currentPrice * quantity)}{" "}
                           </span>
                         </a>
                         <a

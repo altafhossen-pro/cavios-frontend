@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import CountdownTimer from "../common/Countdown";
-
+import { formatPrice } from "@/config/currency";
 import { useContextElement } from "@/context/Context";
 export default function ProductsCards6({ product }) {
   const [currentImage, setCurrentImage] = useState(product.imgSrc);
@@ -52,14 +52,14 @@ export default function ProductsCards6({ product }) {
         )}
       </div>
       <div className="card-product-info">
-        <Link href={`/product-detail/${product.id}`} className="title link">
+        <Link href={`/product/${product.slug || product.id}`} className="title link">
           {product.title}
         </Link>
         <span className="price current-price">
           {product.oldPrice && (
-            <span className="old-price">${product.oldPrice.toFixed(2)}</span>
+            <span className="old-price">{formatPrice(product.oldPrice)}</span>
           )}{" "}
-          ${product.price?.toFixed(2)}
+          {formatPrice(product.price || 0)}
         </span>
         <p className="description text-secondary text-line-clamp-2">
           The garments labelled as Committed are products that have been

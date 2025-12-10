@@ -3,13 +3,51 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useContextElement } from "@/context/Context";
-import { allProducts } from "@/data/products";
+import { formatPrice } from "@/config/currency";
+import { getProductById } from "@/features/product/api/productApi";
+import { formatProductForDisplay } from "@/features/product/utils/formatProduct";
 
 export default function Wishlist() {
   const { removeFromWishlist, wishList } = useContextElement();
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
-    setItems([...allProducts.filter((elm) => wishList.includes(elm.id))]);
+    const fetchWishlistProducts = async () => {
+      if (!wishList || wishList.length === 0) {
+        setItems([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // Fetch all products by IDs
+        const productPromises = wishList.map(async (productId) => {
+          try {
+            const response = await getProductById(productId);
+            if (response.success && response.data) {
+              return formatProductForDisplay(response.data);
+            }
+            return null;
+          } catch (error) {
+            console.error(`Error fetching product ${productId}:`, error);
+            return null;
+          }
+        });
+
+        const products = await Promise.all(productPromises);
+        // Filter out null values (failed fetches)
+        const validProducts = products.filter(product => product !== null);
+        setItems(validProducts);
+      } catch (error) {
+        console.error('Error fetching wishlist products:', error);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWishlistProducts();
   }, [wishList]);
   return (
     <div className="modal fullRight fade modal-wishlist" id="wishlist">
@@ -26,24 +64,31 @@ export default function Wishlist() {
             <div className="tf-mini-cart-wrap">
               <div className="tf-mini-cart-main">
                 <div className="tf-mini-cart-sroll">
-                  {items.length ? (
+                  {loading ? (
+                    <div className="p-4 text-center">
+                      <p>Loading wishlist items...</p>
+                    </div>
+                  ) : items.length ? (
                     <div className="tf-mini-cart-items">
                       {items.map((elm, i) => (
-                        <div key={i} className="tf-mini-cart-item file-delete">
+                        <div key={elm.id || i} className="tf-mini-cart-item file-delete">
                           <div className="tf-mini-cart-image">
                             <Image
                               className="lazyload"
-                              alt=""
-                              src={elm.imgSrc}
+                              alt={elm.title || "Product"}
+                              src={elm.imgSrc || elm.featuredImage || "/images/logo/logo.svg"}
                               width={600}
                               height={800}
+                              onError={(e) => {
+                                e.target.src = "/images/logo/logo.svg";
+                              }}
                             />
                           </div>
                           <div className="tf-mini-cart-info flex-grow-1">
                             <div className="mb_12 d-flex align-items-center justify-content-between flex-wrap gap-12">
                               <div className="text-title">
                                 <Link
-                                  href={`/product-detail/${elm.id}`}
+                                  href={`/product/${elm.slug || elm.id}`}
                                   className="link text-line-clamp-1"
                                 >
                                   {elm.title}
@@ -57,9 +102,13 @@ export default function Wishlist() {
                               </div>
                             </div>
                             <div className="d-flex align-items-center justify-content-between flex-wrap gap-12">
-                              <div className="text-secondary-2">XL/Blue</div>
+                              <div className="text-secondary-2">
+                                {elm.variants && elm.variants.length > 0 ? 'Multiple variants' : 'Standard'}
+                              </div>
                               <div className="text-button">
-                                ${elm.price.toFixed(2)}
+                                {elm.priceRange 
+                                  ? `${formatPrice(elm.priceRange.min)} - ${formatPrice(elm.priceRange.max)}`
+                                  : formatPrice(elm.price || 0)}
                               </div>
                             </div>
                           </div>
@@ -70,7 +119,7 @@ export default function Wishlist() {
                     <div className="p-4">
                       Your wishlist is empty. Start adding your favorite
                       products to save them for later!{" "}
-                      <Link className="btn-line" href="/shop-default-grid">
+                      <Link className="btn-line" href="/shop">
                         Explore Products
                       </Link>
                     </div>
@@ -85,7 +134,7 @@ export default function Wishlist() {
                   <span className="text-btn-uppercase">View All Wish List</span>
                 </Link>
                 <Link
-                  href={`/shop-default-grid`}
+                  href={`/shop`}
                   className="text-btn-uppercase"
                 >
                   Or continue shopping

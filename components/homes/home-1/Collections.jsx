@@ -7,11 +7,32 @@ import { Navigation, Pagination } from "swiper/modules";
 import { useHomepageCategories } from "@/features/category/hooks/useCategories";
 import { formatCategoriesForDisplay } from "@/features/category/utils/formatCategory";
 
+// Global CSS to ensure all collection circles maintain 1:1 aspect ratio
+if (typeof document !== 'undefined') {
+  const styleId = 'collection-circle-aspect-ratio-fix';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      .flat-collection-circle .collection-circle .img-style {
+        aspect-ratio: 1/1 !important;
+        height: auto !important;
+      }
+      .flat-collection-circle .collection-circle .img-style img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 export default function Collections() {
   const { categories, loading, error } = useHomepageCategories(10);
   const formattedCategories = formatCategoriesForDisplay(categories);
 
-  // Show loading state
+  // Show loading state with custom skeleton (no Swiper)
   if (loading) {
     return (
       <section className="flat-spacing-2 pb_0">
@@ -22,11 +43,133 @@ export default function Collections() {
               View All Collection
             </Link>
           </div>
-          <div className="text-center py-5">
-            <div className="spinner-border" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
+          {/* Custom skeleton grid - no Swiper */}
+          <div
+            className="flat-collection-circle skeleton-loading wow fadeInUp"
+            data-wow-delay="0.1s"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: '20px',
+              width: '100%',
+            }}
+          >
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={`skeleton-${index}`} className="collection-circle hover-img">
+                {/* Image skeleton */}
+                <div
+                  className="img-style"
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    paddingBottom: '100%',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 1.5s infinite',
+                    }}
+                  />
+                </div>
+                {/* Content skeleton */}
+                <div className="collection-content text-center">
+                  <div>
+                    {/* Title skeleton */}
+                    <div
+                      style={{
+                        width: '70%',
+                        height: '18px',
+                        margin: '0 auto 8px',
+                        backgroundColor: '#f0f0f0',
+                        borderRadius: '4px',
+                        background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
+                        backgroundSize: '200% 100%',
+                        animation: 'shimmer 1.5s infinite',
+                      }}
+                    />
+                  </div>
+                  {/* Count skeleton */}
+                  <div className="count text-secondary">
+                    <div
+                      style={{
+                        width: '40px',
+                        height: '16px',
+                        margin: '0 auto',
+                        backgroundColor: '#f0f0f0',
+                        borderRadius: '4px',
+                        background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
+                        backgroundSize: '200% 100%',
+                        animation: 'shimmer 1.5s infinite',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
+          <style jsx global>{`
+            @keyframes shimmer {
+              0% {
+                background-position: -200% 0;
+              }
+              100% {
+                background-position: 200% 0;
+              }
+            }
+            .flat-collection-circle.skeleton-loading {
+              display: grid !important;
+              grid-template-columns: repeat(5, 1fr) !important;
+              gap: 20px !important;
+              width: 100% !important;
+              max-width: 100% !important;
+            }
+            .flat-collection-circle.skeleton-loading .collection-circle {
+              min-width: 0 !important;
+              width: 100% !important;
+            }
+            .flat-collection-circle.skeleton-loading .collection-circle .img-style {
+              width: 100% !important;
+              height: 0 !important;
+              padding-bottom: 100% !important;
+              aspect-ratio: 1/1 !important;
+            }
+            /* Fix for real categories too - ensure 1:1 aspect ratio */
+            .flat-collection-circle .collection-circle .img-style {
+              aspect-ratio: 1/1 !important;
+              height: auto !important;
+            }
+            @media (max-width: 1200px) {
+              .flat-collection-circle.skeleton-loading {
+                grid-template-columns: repeat(4, 1fr) !important;
+              }
+            }
+            @media (max-width: 1000px) {
+              .flat-collection-circle.skeleton-loading {
+                grid-template-columns: repeat(4, 1fr) !important;
+              }
+            }
+            @media (max-width: 768px) {
+              .flat-collection-circle.skeleton-loading {
+                grid-template-columns: repeat(3, 1fr) !important;
+              }
+            }
+            @media (max-width: 480px) {
+              .flat-collection-circle.skeleton-loading {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 15px !important;
+              }
+            }
+          `}</style>
         </div>
       </section>
     );
@@ -66,6 +209,18 @@ export default function Collections() {
           className="flat-collection-circle wow fadeInUp"
           data-wow-delay="0.1s"
         >
+          <style jsx global>{`
+            /* Ensure all collection circles maintain 1:1 aspect ratio */
+            .flat-collection-circle .collection-circle .img-style {
+              aspect-ratio: 1/1 !important;
+              height: auto !important;
+            }
+            .flat-collection-circle .collection-circle .img-style img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+            }
+          `}</style>
           <Swiper
             dir="ltr"
             slidesPerView={5}

@@ -13,6 +13,7 @@ export default function Slider1({
   slideItems = slides,
   thumbSlidePerView = 6,
   thumbSlidePerViewOnMobile = 6,
+  disableAutoSlide = false,
 }) {
   const items = [...slideItems];
   items[0].src = firstItem ?? items[0].src;
@@ -89,19 +90,24 @@ export default function Slider1({
   const [activeIndex, setActiveIndex] = useState(0);
   const swiperRef = useRef(null);
   useEffect(() => {
-    if (!(items[activeIndex].color == activeColor)) {
-      const slideIndex =
-        items.filter((elm) => elm.color == activeColor)[0]?.id - 1;
-      swiperRef.current.slideTo(slideIndex);
+    // Only auto-slide if disableAutoSlide is false (manual selection)
+    // disableAutoSlide = false means manual selection, so allow auto slide
+    // disableAutoSlide = true means auto selection, so don't auto slide
+    if (!disableAutoSlide && activeColor && swiperRef.current) {
+      const currentSlideColor = items[activeIndex]?.color;
+      if (currentSlideColor !== activeColor) {
+        const slideIndex = items.findIndex((elm) => elm.color == activeColor);
+        if (slideIndex >= 0) {
+          swiperRef.current.slideTo(slideIndex);
+        }
+      }
     }
-  }, [activeColor]);
+  }, [activeColor, disableAutoSlide]);
   useEffect(() => {
     setTimeout(() => {
       if (swiperRef.current) {
-        swiperRef.current.slideTo(1);
-        swiperRef.current.slideTo(
-          items.filter((elm) => elm.color == activeColor)[0]?.id - 1
-        );
+        // Always start with first slide (featured image) on initial load
+        swiperRef.current.slideTo(0);
       }
     });
   }, []);

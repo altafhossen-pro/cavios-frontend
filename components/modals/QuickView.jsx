@@ -6,6 +6,7 @@ import ColorSelect from "../productDetails/ColorSelect";
 import Grid5 from "../productDetails/grids/Grid5";
 import { useContextElement } from "@/context/Context";
 import QuantitySelect from "../productDetails/QuantitySelect";
+import { formatPrice } from "@/config/currency";
 export default function QuickView() {
   const [activeColor, setActiveColor] = useState("gray");
   const [quantity, setQuantity] = useState(1); // Initial quantity is 1
@@ -84,13 +85,13 @@ export default function QuickView() {
                 <div className="tf-product-info-desc">
                   <div className="tf-product-info-price">
                     <h5 className="price-on-sale font-2">
-                      ${quickViewItem.price.toFixed(2)}
+                      {formatPrice(quickViewItem.price)}
                     </h5>
                     {quickViewItem.oldPrice ? (
                       <>
                         <div className="compare-at-price font-2">
                           {" "}
-                          ${quickViewItem.oldPrice.toFixed(2)}
+                          {formatPrice(quickViewItem.oldPrice)}
                         </div>
                         <div className="badges-on-sale text-btn-uppercase">
                           -25%
@@ -153,15 +154,14 @@ export default function QuickView() {
                           : "Add to cart -"}
                       </span>
                       <span className="tf-qty-price total-price">
-                        $
-                        {isAddedToCartProducts(quickViewItem.id)
-                          ? (
-                              quickViewItem.price *
+                        {formatPrice(
+                          isAddedToCartProducts(quickViewItem.id)
+                            ? quickViewItem.price *
                               cartProducts.filter(
                                 (elm) => elm.id == quickViewItem.id
                               )[0].quantity
-                            ).toFixed(2)
-                          : (quickViewItem.price * quantity).toFixed(2)}
+                            : quickViewItem.price * quantity
+                        )}
                       </span>
                     </a>
                     <a

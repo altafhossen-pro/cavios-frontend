@@ -1,13 +1,57 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { login } from "@/features/auth/api/authApi";
+import { useContextElement } from "@/context/Context";
+
 export default function Login() {
+  const router = useRouter();
+  const { setUserAndToken } = useContextElement();
+  
+  const [emailOrPhone, setEmailOrPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [passwordType, setPasswordType] = useState("password");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const togglePassword = () => {
     setPasswordType((prevType) =>
       prevType === "password" ? "text" : "password"
     );
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    
+    if (!emailOrPhone || !password) {
+      setError("Email/Phone and password are required");
+      return;
+    }
+    
+    setLoading(true);
+    const response = await login(emailOrPhone, password);
+    setLoading(false);
+    
+    if (response.success && response.data) {
+      const { user, token } = response.data;
+      
+      // Set user and token in global state
+      setUserAndToken(user, token);
+      
+      setSuccess("Login successful!");
+      
+      // Redirect to home page after 1 second
+      setTimeout(() => {
+        router.push('/');
+      }, 1000);
+    } else {
+      setError(response.message || "Invalid credentials");
+    }
   };
 
   return (
@@ -18,19 +62,46 @@ export default function Login() {
             <div className="heading">
               <h4>Login</h4>
             </div>
+            {/* Error/Success Messages */}
+            {error && (
+              <div style={{ 
+                padding: '12px', 
+                backgroundColor: '#fee', 
+                color: '#c33', 
+                borderRadius: '4px', 
+                marginBottom: '15px',
+                fontSize: '14px'
+              }}>
+                {error}
+              </div>
+            )}
+            {success && (
+              <div style={{ 
+                padding: '12px', 
+                backgroundColor: '#efe', 
+                color: '#3c3', 
+                borderRadius: '4px', 
+                marginBottom: '15px',
+                fontSize: '14px'
+              }}>
+                {success}
+              </div>
+            )}
+
             <form
-              onSubmit={(e) => e.preventDefault()}
+              onSubmit={handleLogin}
               className="form-login form-has-password"
             >
               <div className="wrap">
                 <fieldset className="">
                   <input
                     className=""
-                    type="email"
-                    placeholder="Username or email address*"
-                    name="email"
-                    tabIndex={2}
-                    defaultValue=""
+                    type="text"
+                    placeholder="Email or Phone Number*"
+                    name="emailOrPhone"
+                    value={emailOrPhone}
+                    onChange={(e) => setEmailOrPhone(e.target.value)}
+                    disabled={loading}
                     aria-required="true"
                     required
                   />
@@ -41,8 +112,9 @@ export default function Login() {
                     type={passwordType}
                     placeholder="Password*"
                     name="password"
-                    tabIndex={2}
-                    defaultValue=""
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
                     aria-required="true"
                     required
                   />
@@ -63,7 +135,8 @@ export default function Login() {
                   <div className="tf-cart-checkbox">
                     <div className="tf-checkbox-wrapp">
                       <input
-                        defaultChecked
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
                         className=""
                         type="checkbox"
                         id="login-form_agree"
@@ -84,8 +157,14 @@ export default function Login() {
                 </div>
               </div>
               <div className="button-submit">
-                <button className="tf-btn btn-fill" type="submit">
-                  <span className="text text-button">Login</span>
+                <button 
+                  className="tf-btn btn-fill" 
+                  type="submit"
+                  disabled={loading}
+                >
+                  <span className="text text-button">
+                    {loading ? "Logging in..." : "Login"}
+                  </span>
                 </button>
               </div>
             </form>

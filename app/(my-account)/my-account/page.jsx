@@ -1,5 +1,5 @@
 import Footer from "@/components/footers/Footer";
-import Header1 from "@/components/headers/Header1";
+import MainHeader from "@/components/headers/MainHeader";
 import AccountSidebar from "@/components/my-account/AccountSidebar";
 import Information from "@/components/my-account/Information";
 import Link from "next/link";
@@ -13,7 +13,7 @@ export const metadata = {
 export default function MyAccountPage() {
   return (
     <>
-      <Header1 />
+      <MainHeader />
       <>
         {/* page-title */}
         <div

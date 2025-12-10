@@ -37,7 +37,7 @@ export const formatProductForDisplay = (product) => {
   
   // Default fallback
   if (!imageUrl || imageUrl === 'null' || imageUrl === 'undefined' || imageUrl.trim() === '') {
-    imageUrl = '/images/products/product1.jpg';
+    imageUrl = '/images/logo/logo.svg';
   }
   
   // Ensure proper URL format
@@ -47,20 +47,36 @@ export const formatProductForDisplay = (product) => {
   
   // Final safety check
   if (!imageUrl || imageUrl === 'null' || imageUrl === 'undefined' || imageUrl.trim() === '') {
-    imageUrl = '/images/products/product1.jpg';
+    imageUrl = '/images/logo/logo.svg';
   }
 
-  // Get price - use variant price if available, otherwise use basePrice or priceRange
-  let price = product.basePrice || 0;
+  // Calculate priceRange from variants (min/max)
+  let priceRange = { min: 0, max: 0 };
+  if (product.variants && product.variants.length > 0) {
+    const prices = product.variants
+      .map(v => v.currentPrice)
+      .filter(p => p && p > 0);
+    if (prices.length > 0) {
+      priceRange = {
+        min: Math.min(...prices),
+        max: Math.max(...prices),
+      };
+    }
+  } else if (product.priceRange) {
+    priceRange = product.priceRange;
+  }
+
+  // Get price from first variant (for display in card)
+  let price = 0;
   let oldPrice = null;
   
   if (product.variants && product.variants.length > 0) {
     // Use first variant's price
     const firstVariant = product.variants[0];
-    price = firstVariant.currentPrice || firstVariant.salePrice || firstVariant.originalPrice || price;
+    price = firstVariant.currentPrice || 0;
     oldPrice = firstVariant.originalPrice && firstVariant.originalPrice > price ? firstVariant.originalPrice : null;
-  } else if (product.priceRange) {
-    price = product.priceRange.min || price;
+  } else if (priceRange.min > 0) {
+    price = priceRange.min;
   }
 
   // Check if product is on sale
@@ -133,6 +149,7 @@ export const formatProductForDisplay = (product) => {
     filterBrands: product.brand ? [product.brand] : [],
     variants: product.variants || [],
     totalStock: product.totalStock || 0,
+    priceRange: priceRange, // Calculated from variants
   };
 };
 

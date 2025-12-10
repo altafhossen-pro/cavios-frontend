@@ -3,250 +3,699 @@
 import { useContextElement } from "@/context/Context";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
-import { Swiper, SwiperSlide } from "swiper/react";
-const discounts = [
-  {
-    discount: "10% OFF",
-    details: "For all orders from 200$",
-    code: "Mo234231",
-  },
-  {
-    discount: "10% OFF",
-    details: "For all orders from 200$",
-    code: "Mo234231",
-  },
-  {
-    discount: "10% OFF",
-    details: "For all orders from 200$",
-    code: "Mo234231",
-  },
-];
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { formatPrice } from "@/config/currency";
+import { getDivisions, getDistrictsByDivision, getUpazilasByDistrict, getDhakaCityAreas } from "@/features/address/api/addressApi";
+import { createOrder } from "@/features/order/api/orderApi";
+
 export default function Checkout() {
-  const [activeDiscountIndex, setActiveDiscountIndex] = useState(1);
-  const { cartProducts, totalPrice } = useContextElement();
+  const router = useRouter();
+  const [selectedLocation, setSelectedLocation] = useState("insideDhaka"); // insideDhaka, outsideDhaka, subDhaka
+  const [appliedDiscount, setAppliedDiscount] = useState(0);
+  
+  // Form states
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [division, setDivision] = useState("");
+  const [district, setDistrict] = useState("");
+  const [upazila, setUpazila] = useState("");
+  const [dhakaArea, setDhakaArea] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [notes, setNotes] = useState("");
+  
+  // Validation and loading states
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Address data states
+  const [divisions, setDivisions] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [upazilas, setUpazilas] = useState([]);
+  const [dhakaCityAreas, setDhakaCityAreas] = useState([]);
+  
+  // Check if district is Dhaka (ID: 65)
+  const isDhakaDistrict = district === "65" || district === 65;
+  
+  // Find selected division and district objects
+  const selectedDivisionObj = useMemo(() => {
+    return divisions.find(div => div.id === division);
+  }, [divisions, division]);
+  
+  const selectedDistrictObj = useMemo(() => {
+    return districts.find(dist => dist.id === district);
+  }, [districts, district]);
+  
+  // Check if division is Dhaka division (usually ID: "30" or name contains "Dhaka")
+  const isDhakaDivision = useMemo(() => {
+    if (!selectedDivisionObj) return false;
+    const divisionName = selectedDivisionObj.name?.toLowerCase() || '';
+    return divisionName.includes('dhaka') || selectedDivisionObj.id === "30";
+  }, [selectedDivisionObj]);
+  
+  // Load divisions on mount
+  useEffect(() => {
+    const loadDivisions = async () => {
+      const response = await getDivisions();
+      if (response.success && response.data) {
+        setDivisions(response.data);
+      }
+    };
+    loadDivisions();
+  }, []);
+  
+  // Load districts when division changes
+  useEffect(() => {
+    if (division) {
+      const loadDistricts = async () => {
+        const response = await getDistrictsByDivision(division);
+        if (response.success && response.data) {
+          setDistricts(response.data);
+          setDistrict(""); // Reset district when division changes
+          setUpazila(""); // Reset upazila when division changes
+        }
+      };
+      loadDistricts();
+    } else {
+      setDistricts([]);
+      setDistrict("");
+      setUpazila("");
+    }
+  }, [division]);
+  
+  // Load upazilas or Dhaka City areas when district changes
+  useEffect(() => {
+    if (district) {
+      // Check if district is Dhaka (ID: 65)
+      if (district === "65" || district === 65) {
+        // Load Dhaka City areas (no district ID needed)
+        const loadDhakaAreas = async () => {
+          console.log('Loading Dhaka City areas for district:', district);
+          const response = await getDhakaCityAreas();
+          console.log('Dhaka City areas response:', response);
+          if (response.success && response.data) {
+            console.log('Dhaka City areas loaded:', response.data.length, 'areas');
+            setDhakaCityAreas(response.data);
+            setDhakaArea(""); // Reset area when district changes
+            setUpazilas([]); // Clear upazilas
+            setUpazila(""); // Clear upazila
+          } else {
+            console.error('Failed to load Dhaka City areas:', response.message);
+            setDhakaCityAreas([]);
+          }
+        };
+        loadDhakaAreas();
+      } else {
+        // Load upazilas for other districts
+        const loadUpazilas = async () => {
+          const response = await getUpazilasByDistrict(district);
+          if (response.success && response.data) {
+            setUpazilas(response.data);
+            setUpazila(""); // Reset upazila when district changes
+            setDhakaCityAreas([]); // Clear Dhaka areas
+            setDhakaArea(""); // Clear area
+          }
+        };
+        loadUpazilas();
+      }
+    } else {
+      setUpazilas([]);
+      setUpazila("");
+      setDhakaCityAreas([]);
+      setDhakaArea("");
+    }
+  }, [district]);
+  
+  // Auto-set delivery charge based on address
+  useEffect(() => {
+    if (district) {
+      // If district is Dhaka (ID: 65) -> Inside Dhaka
+      if (isDhakaDistrict) {
+        setSelectedLocation("insideDhaka");
+      } 
+      // If division is Dhaka but district is not Dhaka -> Sub Dhaka
+      else if (isDhakaDivision) {
+        setSelectedLocation("subDhaka");
+      } 
+      // Otherwise -> Outside Dhaka
+      else {
+        setSelectedLocation("outsideDhaka");
+      }
+    }
+  }, [district, isDhakaDistrict, isDhakaDivision]);
+  
+  const { 
+    cartProducts, 
+    totalPrice,
+    deliveryChargeSettings,
+    user,
+    clearCart
+  } = useContextElement();
+
+  // Calculate shipping charge based on location and delivery settings
+  const shippingCharge = useMemo(() => {
+    if (!deliveryChargeSettings) return 0;
+    
+    // Check if total price qualifies for free shipping
+    if (totalPrice >= deliveryChargeSettings.shippingFreeRequiredAmount) {
+      return 0;
+    }
+
+    // Calculate based on selected location
+    switch (selectedLocation) {
+      case "insideDhaka":
+        return deliveryChargeSettings.insideDhaka || 0;
+      case "outsideDhaka":
+        return deliveryChargeSettings.outsideDhaka || 0;
+      case "subDhaka":
+        return deliveryChargeSettings.subDhaka || 0;
+      default:
+        return deliveryChargeSettings.insideDhaka || 0;
+    }
+  }, [selectedLocation, totalPrice, deliveryChargeSettings]);
+
+  // Calculate final total
+  const finalTotal = useMemo(() => {
+    return Math.max(0, totalPrice + shippingCharge - appliedDiscount);
+  }, [totalPrice, shippingCharge, appliedDiscount]);
+
+  // Validate form
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!name || !name.trim()) {
+      newErrors.name = "Full name is required";
+    }
+    
+    if (!phone || !phone.trim()) {
+      newErrors.phone = "Phone number is required";
+    } else {
+      const phoneDigits = phone.replace(/[^0-9]/g, '');
+      if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+        newErrors.phone = "Please enter a valid phone number (10-11 digits)";
+      }
+    }
+    
+    if (!division) {
+      newErrors.division = "Please select a division";
+    }
+    
+    if (!district) {
+      newErrors.district = "Please select a district";
+    }
+    
+    if (isDhakaDistrict && !dhakaArea) {
+      newErrors.dhakaArea = "Please select an area";
+    } else if (!isDhakaDistrict && !upazila) {
+      newErrors.upazila = "Please select an upazila";
+    }
+    
+    if (!shippingAddress || !shippingAddress.trim()) {
+      newErrors.shippingAddress = "Shipping address is required";
+    }
+    
+    if (!cartProducts || cartProducts.length === 0) {
+      newErrors.cart = "Your cart is empty";
+    }
+    
+    const isValid = Object.keys(newErrors).length === 0;
+    
+    // Add submit error message if validation fails
+    if (!isValid) {
+      const errorMessages = Object.values(newErrors).filter(msg => msg !== "Your cart is empty");
+      if (errorMessages.length > 0) {
+        newErrors.submit = "Please fill in all required fields correctly";
+      }
+    }
+    
+    // Set all errors at once
+    setErrors(newErrors);
+    
+    return isValid;
+  };
+
+  // Handle order submission
+  const handlePlaceOrder = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('Place Order clicked');
+    console.log('Form data:', { name, phone, division, district, upazila, dhakaArea, shippingAddress, cartProducts: cartProducts?.length });
+    
+    // Clear previous submit error
+    setErrors({});
+    
+    // Validate form
+    const isValid = validateForm();
+    console.log('Validation result:', isValid);
+    
+    if (!isValid) {
+      console.log('Form validation failed - showing errors');
+      setIsSubmitting(false);
+      // Force re-render to show errors
+      setTimeout(() => {
+        setErrors(prev => ({ ...prev }));
+      }, 100);
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Prepare order items from cart
+      const orderItems = cartProducts.map(item => ({
+        product: item.productId,
+        variantSku: item.variantSku || '',
+        name: item.productTitle || 'Product',
+        image: item.productImage || '',
+        price: item.price || 0,
+        quantity: item.quantity || 1,
+        subtotal: (item.price || 0) * (item.quantity || 1),
+        variant: {
+          size: item.size || '',
+          color: item.color || '',
+          colorHexCode: item.colorHexCode || '',
+          sku: item.variantSku || '',
+          stockQuantity: item.stockQuantity || null,
+          stockStatus: 'in_stock'
+        }
+      }));
+      
+      // Prepare shipping address
+      const selectedDivisionName = selectedDivisionObj?.name || '';
+      const selectedDistrictName = selectedDistrictObj?.name || '';
+      let selectedUpazilaName = '';
+      let selectedAreaName = '';
+      
+      if (isDhakaDistrict && dhakaArea) {
+        const area = dhakaCityAreas.find(a => a.id === dhakaArea);
+        selectedAreaName = area?.name || '';
+      } else if (!isDhakaDistrict && upazila) {
+        const upz = upazilas.find(u => u.id === upazila);
+        selectedUpazilaName = upz?.name || '';
+      }
+      
+      const shippingAddressData = {
+        label: 'Home',
+        street: shippingAddress,
+        city: selectedDistrictName,
+        state: selectedDivisionName,
+        country: 'Bangladesh',
+        divisionId: division,
+        districtId: district,
+        upazilaId: isDhakaDistrict ? '' : upazila,
+        areaId: isDhakaDistrict ? dhakaArea : '',
+        division: selectedDivisionName,
+        district: selectedDistrictName,
+        upazila: selectedUpazilaName,
+        area: selectedAreaName
+      };
+      
+      // Prepare order data
+      const orderData = {
+        items: orderItems,
+        shippingAddress: shippingAddressData,
+        paymentMethod: 'cod',
+        paymentStatus: 'pending',
+        total: finalTotal,
+        discount: appliedDiscount,
+        shippingCost: shippingCharge,
+        orderNotes: notes || '',
+        orderSource: 'website'
+      };
+      
+      // Create order
+      console.log('Sending order data:', orderData);
+      const response = await createOrder(orderData);
+      console.log('Order API response:', response);
+      
+      if (response.success && response.data) {
+        // Clear cart after successful order
+        clearCart();
+        
+        // Navigate to success page
+        const orderId = response.data.orderId || response.data._id;
+        router.push(`/order/success?orderId=${orderId}`);
+      } else {
+        setErrors({ submit: response.message || 'Failed to place order. Please try again.' });
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error('Error placing order:', error);
+      setErrors({ submit: 'An error occurred. Please try again.' });
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle empty cart
+  if (!cartProducts || cartProducts.length === 0) {
+    return (
+      <section>
+        <div className="container">
+          <div className="row">
+            <div className="col-12">
+              <div className="p-4 text-center">
+                <p>Your cart is empty. Please add items to checkout.</p>
+                <Link className="btn-line" href="/shop-default-grid">
+                  Continue Shopping
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
   return (
     <section>
       <div className="container">
         <div className="row">
           <div className="col-xl-6">
             <div className="flat-spacing tf-page-checkout">
-              <div className="wrap">
-                <div className="title-login">
-                  <p>Already have an account?</p>{" "}
-                  <Link href={`/login`} className="text-button">
-                    Login here
-                  </Link>
-                </div>
-                <form
-                  className="login-box"
-                  onSubmit={(e) => e.preventDefault()}
-                >
-                  <div className="grid-2">
-                    <input type="text" placeholder="Your name/Email" />
-                    <input type="password" placeholder="Password" />
+              {!user && (
+                <div className="wrap">
+                  <div className="title-login">
+                    <p>Already have an account?</p>{" "}
+                    <Link href={`/login`} className="text-button">
+                      Login here
+                    </Link>
                   </div>
-                  <button className="tf-btn" type="submit">
-                    <span className="text">Login</span>
-                  </button>
-                </form>
-              </div>
-              <div className="wrap">
-                <h5 className="title">Information</h5>
-                <form className="info-box" onSubmit={(e) => e.preventDefault()}>
-                  <div className="grid-2">
-                    <input type="text" placeholder="First Name*" />
-                    <input type="text" placeholder="Last Name*" />
-                  </div>
-                  <div className="grid-2">
-                    <input type="text" placeholder="Email Address*" />
-                    <input type="text" placeholder="Phone Number*" />
-                  </div>
-                  <div className="tf-select">
-                    <select
-                      className="text-title"
-                      name="address[country]"
-                      data-default=""
-                    >
-                      <option
-                        selected=""
-                        value="Choose Country/Region"
-                        data-provinces="[]"
-                      >
-                        Choose Country/Region
-                      </option>
-                      <option
-                        value="United States"
-                        data-provinces="[['Alabama','Alabama'],['Alaska','Alaska'],['American Samoa','American Samoa'],['Arizona','Arizona'],['Arkansas','Arkansas'],['Armed Forces Americas','Armed Forces Americas'],['Armed Forces Europe','Armed Forces Europe'],['Armed Forces Pacific','Armed Forces Pacific'],['California','California'],['Colorado','Colorado'],['Connecticut','Connecticut'],['Delaware','Delaware'],['District of Columbia','Washington DC'],['Federated States of Micronesia','Micronesia'],['Florida','Florida'],['Georgia','Georgia'],['Guam','Guam'],['Hawaii','Hawaii'],['Idaho','Idaho'],['Illinois','Illinois'],['Indiana','Indiana'],['Iowa','Iowa'],['Kansas','Kansas'],['Kentucky','Kentucky'],['Louisiana','Louisiana'],['Maine','Maine'],['Marshall Islands','Marshall Islands'],['Maryland','Maryland'],['Massachusetts','Massachusetts'],['Michigan','Michigan'],['Minnesota','Minnesota'],['Mississippi','Mississippi'],['Missouri','Missouri'],['Montana','Montana'],['Nebraska','Nebraska'],['Nevada','Nevada'],['New Hampshire','New Hampshire'],['New Jersey','New Jersey'],['New Mexico','New Mexico'],['New York','New York'],['North Carolina','North Carolina'],['North Dakota','North Dakota'],['Northern Mariana Islands','Northern Mariana Islands'],['Ohio','Ohio'],['Oklahoma','Oklahoma'],['Oregon','Oregon'],['Palau','Palau'],['Pennsylvania','Pennsylvania'],['Puerto Rico','Puerto Rico'],['Rhode Island','Rhode Island'],['South Carolina','South Carolina'],['South Dakota','South Dakota'],['Tennessee','Tennessee'],['Texas','Texas'],['Utah','Utah'],['Vermont','Vermont'],['Virgin Islands','U.S. Virgin Islands'],['Virginia','Virginia'],['Washington','Washington'],['West Virginia','West Virginia'],['Wisconsin','Wisconsin'],['Wyoming','Wyoming']]"
-                      >
-                        United States
-                      </option>
-                      <option
-                        value="Australia"
-                        data-provinces="[['Australian Capital Territory','Australian Capital Territory'],['New South Wales','New South Wales'],['Northern Territory','Northern Territory'],['Queensland','Queensland'],['South Australia','South Australia'],['Tasmania','Tasmania'],['Victoria','Victoria'],['Western Australia','Western Australia']]"
-                      >
-                        Australia
-                      </option>
-                      <option value="Austria" data-provinces="[]">
-                        Austria
-                      </option>
-                      <option value="Belgium" data-provinces="[]">
-                        Belgium
-                      </option>
-                      <option
-                        value="Canada"
-                        data-provinces="[['Alberta','Alberta'],['British Columbia','British Columbia'],['Manitoba','Manitoba'],['New Brunswick','New Brunswick'],['Newfoundland and Labrador','Newfoundland and Labrador'],['Northwest Territories','Northwest Territories'],['Nova Scotia','Nova Scotia'],['Nunavut','Nunavut'],['Ontario','Ontario'],['Prince Edward Island','Prince Edward Island'],['Quebec','Quebec'],['Saskatchewan','Saskatchewan'],['Yukon','Yukon']]"
-                      >
-                        Canada
-                      </option>
-                      <option value="Czech Republic" data-provinces="[]">
-                        Czechia
-                      </option>
-                      <option value="Denmark" data-provinces="[]">
-                        Denmark
-                      </option>
-                      <option value="Finland" data-provinces="[]">
-                        Finland
-                      </option>
-                      <option value="France" data-provinces="[]">
-                        France
-                      </option>
-                      <option value="Germany" data-provinces="[]">
-                        Germany
-                      </option>
-                      <option
-                        value="Hong Kong"
-                        data-provinces="[['Hong Kong Island','Hong Kong Island'],['Kowloon','Kowloon'],['New Territories','New Territories']]"
-                      >
-                        Hong Kong SAR
-                      </option>
-                      <option
-                        value="Ireland"
-                        data-provinces="[['Carlow','Carlow'],['Cavan','Cavan'],['Clare','Clare'],['Cork','Cork'],['Donegal','Donegal'],['Dublin','Dublin'],['Galway','Galway'],['Kerry','Kerry'],['Kildare','Kildare'],['Kilkenny','Kilkenny'],['Laois','Laois'],['Leitrim','Leitrim'],['Limerick','Limerick'],['Longford','Longford'],['Louth','Louth'],['Mayo','Mayo'],['Meath','Meath'],['Monaghan','Monaghan'],['Offaly','Offaly'],['Roscommon','Roscommon'],['Sligo','Sligo'],['Tipperary','Tipperary'],['Waterford','Waterford'],['Westmeath','Westmeath'],['Wexford','Wexford'],['Wicklow','Wicklow']]"
-                      >
-                        Ireland
-                      </option>
-                      <option value="Israel" data-provinces="[]">
-                        Israel
-                      </option>
-                      <option
-                        value="Italy"
-                        data-provinces="[['Agrigento','Agrigento'],['Alessandria','Alessandria'],['Ancona','Ancona'],['Aosta','Aosta Valley'],['Arezzo','Arezzo'],['Ascoli Piceno','Ascoli Piceno'],['Asti','Asti'],['Avellino','Avellino'],['Bari','Bari'],['Barletta-Andria-Trani','Barletta-Andria-Trani'],['Belluno','Belluno'],['Benevento','Benevento'],['Bergamo','Bergamo'],['Biella','Biella'],['Bologna','Bologna'],['Bolzano','South Tyrol'],['Brescia','Brescia'],['Brindisi','Brindisi'],['Cagliari','Cagliari'],['Caltanissetta','Caltanissetta'],['Campobasso','Campobasso'],['Carbonia-Iglesias','Carbonia-Iglesias'],['Caserta','Caserta'],['Catania','Catania'],['Catanzaro','Catanzaro'],['Chieti','Chieti'],['Como','Como'],['Cosenza','Cosenza'],['Cremona','Cremona'],['Crotone','Crotone'],['Cuneo','Cuneo'],['Enna','Enna'],['Fermo','Fermo'],['Ferrara','Ferrara'],['Firenze','Florence'],['Foggia','Foggia'],['Forlì-Cesena','Forlì-Cesena'],['Frosinone','Frosinone'],['Genova','Genoa'],['Gorizia','Gorizia'],['Grosseto','Grosseto'],['Imperia','Imperia'],['Isernia','Isernia'],['L'Aquila','L’Aquila'],['La Spezia','La Spezia'],['Latina','Latina'],['Lecce','Lecce'],['Lecco','Lecco'],['Livorno','Livorno'],['Lodi','Lodi'],['Lucca','Lucca'],['Macerata','Macerata'],['Mantova','Mantua'],['Massa-Carrara','Massa and Carrara'],['Matera','Matera'],['Medio Campidano','Medio Campidano'],['Messina','Messina'],['Milano','Milan'],['Modena','Modena'],['Monza e Brianza','Monza and Brianza'],['Napoli','Naples'],['Novara','Novara'],['Nuoro','Nuoro'],['Ogliastra','Ogliastra'],['Olbia-Tempio','Olbia-Tempio'],['Oristano','Oristano'],['Padova','Padua'],['Palermo','Palermo'],['Parma','Parma'],['Pavia','Pavia'],['Perugia','Perugia'],['Pesaro e Urbino','Pesaro and Urbino'],['Pescara','Pescara'],['Piacenza','Piacenza'],['Pisa','Pisa'],['Pistoia','Pistoia'],['Pordenone','Pordenone'],['Potenza','Potenza'],['Prato','Prato'],['Ragusa','Ragusa'],['Ravenna','Ravenna'],['Reggio Calabria','Reggio Calabria'],['Reggio Emilia','Reggio Emilia'],['Rieti','Rieti'],['Rimini','Rimini'],['Roma','Rome'],['Rovigo','Rovigo'],['Salerno','Salerno'],['Sassari','Sassari'],['Savona','Savona'],['Siena','Siena'],['Siracusa','Syracuse'],['Sondrio','Sondrio'],['Taranto','Taranto'],['Teramo','Teramo'],['Terni','Terni'],['Torino','Turin'],['Trapani','Trapani'],['Trento','Trentino'],['Treviso','Treviso'],['Trieste','Trieste'],['Udine','Udine'],['Varese','Varese'],['Venezia','Venice'],['Verbano-Cusio-Ossola','Verbano-Cusio-Ossola'],['Vercelli','Vercelli'],['Verona','Verona'],['Vibo Valentia','Vibo Valentia'],['Vicenza','Vicenza'],['Viterbo','Viterbo']]"
-                      >
-                        Italy
-                      </option>
-                      <option
-                        value="Japan"
-                        data-provinces="[['Aichi','Aichi'],['Akita','Akita'],['Aomori','Aomori'],['Chiba','Chiba'],['Ehime','Ehime'],['Fukui','Fukui'],['Fukuoka','Fukuoka'],['Fukushima','Fukushima'],['Gifu','Gifu'],['Gunma','Gunma'],['Hiroshima','Hiroshima'],['Hokkaidō','Hokkaido'],['Hyōgo','Hyogo'],['Ibaraki','Ibaraki'],['Ishikawa','Ishikawa'],['Iwate','Iwate'],['Kagawa','Kagawa'],['Kagoshima','Kagoshima'],['Kanagawa','Kanagawa'],['Kumamoto','Kumamoto'],['Kyōto','Kyoto'],['Kōchi','Kochi'],['Mie','Mie'],['Miyagi','Miyagi'],['Miyazaki','Miyazaki'],['Nagano','Nagano'],['Nagasaki','Nagasaki'],['Nara','Nara'],['Niigata','Niigata'],['Okayama','Okayama'],['Okinawa','Okinawa'],['Saga','Saga'],['Saitama','Saitama'],['Shiga','Shiga'],['Shimane','Shimane'],['Shizuoka','Shizuoka'],['Tochigi','Tochigi'],['Tokushima','Tokushima'],['Tottori','Tottori'],['Toyama','Toyama'],['Tōkyō','Tokyo'],['Wakayama','Wakayama'],['Yamagata','Yamagata'],['Yamaguchi','Yamaguchi'],['Yamanashi','Yamanashi'],['Ōita','Oita'],['Ōsaka','Osaka']]"
-                      >
-                        Japan
-                      </option>
-                      <option
-                        value="Malaysia"
-                        data-provinces="[['Johor','Johor'],['Kedah','Kedah'],['Kelantan','Kelantan'],['Kuala Lumpur','Kuala Lumpur'],['Labuan','Labuan'],['Melaka','Malacca'],['Negeri Sembilan','Negeri Sembilan'],['Pahang','Pahang'],['Penang','Penang'],['Perak','Perak'],['Perlis','Perlis'],['Putrajaya','Putrajaya'],['Sabah','Sabah'],['Sarawak','Sarawak'],['Selangor','Selangor'],['Terengganu','Terengganu']]"
-                      >
-                        Malaysia
-                      </option>
-                      <option value="Netherlands" data-provinces="[]">
-                        Netherlands
-                      </option>
-                      <option
-                        value="New Zealand"
-                        data-provinces="[['Auckland','Auckland'],['Bay of Plenty','Bay of Plenty'],['Canterbury','Canterbury'],['Chatham Islands','Chatham Islands'],['Gisborne','Gisborne'],['Hawke's Bay','Hawke’s Bay'],['Manawatu-Wanganui','Manawatū-Whanganui'],['Marlborough','Marlborough'],['Nelson','Nelson'],['Northland','Northland'],['Otago','Otago'],['Southland','Southland'],['Taranaki','Taranaki'],['Tasman','Tasman'],['Waikato','Waikato'],['Wellington','Wellington'],['West Coast','West Coast']]"
-                      >
-                        New Zealand
-                      </option>
-                      <option value="Norway" data-provinces="[]">
-                        Norway
-                      </option>
-                      <option value="Poland" data-provinces="[]">
-                        Poland
-                      </option>
-                      <option
-                        value="Portugal"
-                        data-provinces="[['Aveiro','Aveiro'],['Açores','Azores'],['Beja','Beja'],['Braga','Braga'],['Bragança','Bragança'],['Castelo Branco','Castelo Branco'],['Coimbra','Coimbra'],['Faro','Faro'],['Guarda','Guarda'],['Leiria','Leiria'],['Lisboa','Lisbon'],['Madeira','Madeira'],['Portalegre','Portalegre'],['Porto','Porto'],['Santarém','Santarém'],['Setúbal','Setúbal'],['Viana do Castelo','Viana do Castelo'],['Vila Real','Vila Real'],['Viseu','Viseu'],['Évora','Évora']]"
-                      >
-                        Portugal
-                      </option>
-                      <option value="Singapore" data-provinces="[]">
-                        Singapore
-                      </option>
-                      <option
-                        value="South Korea"
-                        data-provinces="[['Busan','Busan'],['Chungbuk','North Chungcheong'],['Chungnam','South Chungcheong'],['Daegu','Daegu'],['Daejeon','Daejeon'],['Gangwon','Gangwon'],['Gwangju','Gwangju City'],['Gyeongbuk','North Gyeongsang'],['Gyeonggi','Gyeonggi'],['Gyeongnam','South Gyeongsang'],['Incheon','Incheon'],['Jeju','Jeju'],['Jeonbuk','North Jeolla'],['Jeonnam','South Jeolla'],['Sejong','Sejong'],['Seoul','Seoul'],['Ulsan','Ulsan']]"
-                      >
-                        South Korea
-                      </option>
-                      <option
-                        value="Spain"
-                        data-provinces="[['A Coruña','A Coruña'],['Albacete','Albacete'],['Alicante','Alicante'],['Almería','Almería'],['Asturias','Asturias Province'],['Badajoz','Badajoz'],['Balears','Balears Province'],['Barcelona','Barcelona'],['Burgos','Burgos'],['Cantabria','Cantabria Province'],['Castellón','Castellón'],['Ceuta','Ceuta'],['Ciudad Real','Ciudad Real'],['Cuenca','Cuenca'],['Cáceres','Cáceres'],['Cádiz','Cádiz'],['Córdoba','Córdoba'],['Girona','Girona'],['Granada','Granada'],['Guadalajara','Guadalajara'],['Guipúzcoa','Gipuzkoa'],['Huelva','Huelva'],['Huesca','Huesca'],['Jaén','Jaén'],['La Rioja','La Rioja Province'],['Las Palmas','Las Palmas'],['León','León'],['Lleida','Lleida'],['Lugo','Lugo'],['Madrid','Madrid Province'],['Melilla','Melilla'],['Murcia','Murcia'],['Málaga','Málaga'],['Navarra','Navarra'],['Ourense','Ourense'],['Palencia','Palencia'],['Pontevedra','Pontevedra'],['Salamanca','Salamanca'],['Santa Cruz de Tenerife','Santa Cruz de Tenerife'],['Segovia','Segovia'],['Sevilla','Seville'],['Soria','Soria'],['Tarragona','Tarragona'],['Teruel','Teruel'],['Toledo','Toledo'],['Valencia','Valencia'],['Valladolid','Valladolid'],['Vizcaya','Biscay'],['Zamora','Zamora'],['Zaragoza','Zaragoza'],['Álava','Álava'],['Ávila','Ávila']]"
-                      >
-                        Spain
-                      </option>
-                      <option value="Sweden" data-provinces="[]">
-                        Sweden
-                      </option>
-                      <option value="Switzerland" data-provinces="[]">
-                        Switzerland
-                      </option>
-                      <option
-                        value="United Arab Emirates"
-                        data-provinces="[['Abu Dhabi','Abu Dhabi'],['Ajman','Ajman'],['Dubai','Dubai'],['Fujairah','Fujairah'],['Ras al-Khaimah','Ras al-Khaimah'],['Sharjah','Sharjah'],['Umm al-Quwain','Umm al-Quwain']]"
-                      >
-                        United Arab Emirates
-                      </option>
-                      <option
-                        value="United Kingdom"
-                        data-provinces="[['British Forces','British Forces'],['England','England'],['Northern Ireland','Northern Ireland'],['Scotland','Scotland'],['Wales','Wales']]"
-                      >
-                        United Kingdom
-                      </option>
-                      <option value="Vietnam" data-provinces="[]">
-                        Vietnam
-                      </option>
-                    </select>
-                  </div>
-                  <div className="grid-2">
-                    <input type="text" placeholder="Town/City*" />
-                    <input type="text" placeholder="Street,..." />
-                  </div>
-                  <div className="grid-2">
-                    <div className="tf-select">
-                      <select className="text-title" data-default="">
-                        <option selected="" value="Choose State">
-                          Choose State
-                        </option>
-                        <option value="California">California</option>
-                        <option value="Alabama">Alabam</option>
-                        <option value="Alaska">Alaska</option>
-                        <option value="Arizona">Arizona</option>
-                        <option value="Arkansas">Arkansas</option>
-                        <option value="Florida">Florida</option>
-                        <option value="Georgia">Georgia</option>
-                        <option value="Hawaii">Hawaii</option>
-                        <option value="Washington">Washington</option>
-                        <option value="Texas">Texas</option>
-                        <option value="Iowa">Iowa</option>
-                        <option value="Nevada">Nevada</option>
-                        <option value="Illinois">Illinois</option>
-                      </select>
+                  <form
+                    className="login-box"
+                    onSubmit={(e) => e.preventDefault()}
+                  >
+                    <div className="grid-2">
+                      <input type="text" placeholder="Your name/Email" />
+                      <input type="password" placeholder="Password" />
                     </div>
-                    <input type="text" placeholder="Postal Code*" />
+                    <button className="tf-btn" type="submit">
+                      <span className="text">Login</span>
+                    </button>
+                  </form>
+                </div>
+              )}
+              <div className="wrap">
+                <h5 className="title">Delivery Information</h5>
+                {errors.submit && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: '#fee',
+                    color: '#c33',
+                    borderRadius: '4px',
+                    marginBottom: '20px',
+                    fontSize: '14px'
+                  }}>
+                    {errors.submit}
                   </div>
-                  <textarea placeholder="Write note..." defaultValue={""} />
+                )}
+                <form className="info-box" onSubmit={(e) => e.preventDefault()} id="delivery-form">
+                  <div className="grid-2">
+                    <div>
+                      <input 
+                        type="text" 
+                        placeholder="Full Name*" 
+                        value={name}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          if (errors.name) setErrors({ ...errors, name: '' });
+                        }}
+                        style={{ borderColor: errors.name ? '#dc3545' : '' }}
+                        required
+                      />
+                      {errors.name && (
+                        <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
+                          {errors.name}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <input 
+                        type="tel" 
+                        placeholder="Phone Number*" 
+                        value={phone}
+                        onChange={(e) => {
+                          setPhone(e.target.value);
+                          if (errors.phone) setErrors({ ...errors, phone: '' });
+                        }}
+                        style={{ borderColor: errors.phone ? '#dc3545' : '' }}
+                        required
+                      />
+                      {errors.phone && (
+                        <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
+                          {errors.phone}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid-2">
+                    <div>
+                      <div className="tf-select">
+                        <select
+                          className="text-title"
+                          value={division}
+                          onChange={(e) => {
+                            setDivision(e.target.value);
+                            if (errors.division) setErrors({ ...errors, division: '' });
+                          }}
+                          style={{ borderColor: errors.division ? '#dc3545' : '' }}
+                          required
+                        >
+                          <option value="">Select Division*</option>
+                          {divisions.map((div) => (
+                            <option key={div.id} value={div.id}>
+                              {div.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {errors.division && (
+                        <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
+                          {errors.division}
+                        </div>
+                      )}
+                    </div>
+                    {division ? (
+                      <div key="district-select">
+                        <div className="tf-select">
+                          <select 
+                            className="text-title"
+                            value={district}
+                            onChange={(e) => {
+                              setDistrict(e.target.value);
+                              if (errors.district) setErrors({ ...errors, district: '' });
+                            }}
+                            style={{ borderColor: errors.district ? '#dc3545' : '' }}
+                            required
+                          >
+                            <option value="">Select District*</option>
+                            {districts.map((dist) => (
+                              <option key={dist.id} value={dist.id}>
+                                {dist.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {errors.district && (
+                          <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
+                            {errors.district}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div key="district-placeholder"></div>
+                    )}
+                  </div>
+                  {district && (
+                    <div className="grid-2">
+                      {isDhakaDistrict ? (
+                        <div key="dhaka-area-select">
+                          <div className="tf-select">
+                            <select 
+                              className="text-title"
+                              value={dhakaArea}
+                              onChange={(e) => {
+                                setDhakaArea(e.target.value);
+                                if (errors.dhakaArea) setErrors({ ...errors, dhakaArea: '' });
+                              }}
+                              style={{ borderColor: errors.dhakaArea ? '#dc3545' : '' }}
+                              required
+                            >
+                              <option value="">Select Area*</option>
+                              {dhakaCityAreas.map((area,index) => (
+                                <option key={index} value={area.id}>
+                                  {area.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          {errors.dhakaArea && (
+                            <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
+                              {errors.dhakaArea}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div key="upazila-select">
+                          <div className="tf-select">
+                            <select 
+                              className="text-title"
+                              value={upazila}
+                              onChange={(e) => {
+                                setUpazila(e.target.value);
+                                if (errors.upazila) setErrors({ ...errors, upazila: '' });
+                              }}
+                              style={{ borderColor: errors.upazila ? '#dc3545' : '' }}
+                              required
+                            >
+                              <option value="">Select Upazila*</option>
+                              {upazilas.map((upz,index) => (
+                                <option key={index} value={upz.id}>
+                                  {upz.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          {errors.upazila && (
+                            <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
+                              {errors.upazila}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <textarea 
+                      placeholder="Shipping Address*" 
+                      value={shippingAddress}
+                      onChange={(e) => {
+                        setShippingAddress(e.target.value);
+                        if (errors.shippingAddress) setErrors({ ...errors, shippingAddress: '' });
+                      }}
+                      rows={3}
+                      style={{ borderColor: errors.shippingAddress ? '#dc3545' : '' }}
+                      required
+                    />
+                    {errors.shippingAddress && (
+                      <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
+                        {errors.shippingAddress}
+                      </div>
+                    )}
+                  </div>
+                  <textarea 
+                    placeholder="Additional Notes (Optional)" 
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                  
+                  {/* Delivery Charge Selection */}
+                  <div className="delivery-charge-selection">
+                    <h6 className="title" style={{ marginBottom: '15px' }}>Choose Delivery Charge:</h6>
+                    <div className="grid-3" style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(3, 1fr)', 
+                      gap: '15px'
+                    }}>
+                      <div 
+                        className={`delivery-option ${selectedLocation === 'insideDhaka' ? 'active' : ''}`}
+                        onClick={() => setSelectedLocation('insideDhaka')}
+                        style={{
+                          padding: '15px',
+                          border: `2px solid ${selectedLocation === 'insideDhaka' ? '#007bff' : '#e0e0e0'}`,
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          backgroundColor: selectedLocation === 'insideDhaka' ? '#f0f8ff' : '#fff',
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Inside Dhaka</div>
+                        <div style={{ fontSize: '14px', color: '#666' }}>
+                          {deliveryChargeSettings ? formatPrice(deliveryChargeSettings.insideDhaka || 0) : '৳0.00'}
+                        </div>
+                      </div>
+                      <div 
+                        className={`delivery-option ${selectedLocation === 'subDhaka' ? 'active' : ''}`}
+                        onClick={() => setSelectedLocation('subDhaka')}
+                        style={{
+                          padding: '15px',
+                          border: `2px solid ${selectedLocation === 'subDhaka' ? '#007bff' : '#e0e0e0'}`,
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          backgroundColor: selectedLocation === 'subDhaka' ? '#f0f8ff' : '#fff',
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Sub Dhaka</div>
+                        <div style={{ fontSize: '14px', color: '#666' }}>
+                          {deliveryChargeSettings ? formatPrice(deliveryChargeSettings.subDhaka || 0) : '৳0.00'}
+                        </div>
+                      </div>
+                      <div 
+                        className={`delivery-option ${selectedLocation === 'outsideDhaka' ? 'active' : ''}`}
+                        onClick={() => setSelectedLocation('outsideDhaka')}
+                        style={{
+                          padding: '15px',
+                          border: `2px solid ${selectedLocation === 'outsideDhaka' ? '#007bff' : '#e0e0e0'}`,
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          backgroundColor: selectedLocation === 'outsideDhaka' ? '#f0f8ff' : '#fff',
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Outside Dhaka</div>
+                        <div style={{ fontSize: '14px', color: '#666' }}>
+                          {deliveryChargeSettings ? formatPrice(deliveryChargeSettings.outsideDhaka || 0) : '৳0.00'}
+                  </div>
+                  </div>
+                    </div>
+                  </div>
                 </form>
               </div>
               <div className="wrap">
                 <h5 className="title">Choose payment Option:</h5>
                 <form
                   className="form-payment"
-                  onSubmit={(e) => e.preventDefault()}
+                  onSubmit={handlePlaceOrder}
                 >
                   <div className="payment-box" id="payment-box">
                     <div className="payment-item payment-choose-card active">
                       <label
-                        htmlFor="credit-card-method"
+                        htmlFor="delivery-method"
                         className="payment-header"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#delivery-payment"
+                        aria-controls="delivery-payment"
+                      >
+                        <input
+                          type="radio"
+                          name="payment-method"
+                          className="tf-check-rounded"
+                          id="delivery-method"
+                          defaultChecked
+                        />
+                        <span className="text-title">Cash on delivery</span>
+                      </label>
+                      <div
+                        id="delivery-payment"
+                        className="collapse show"
+                        data-bs-parent="#payment-box"
+                      >
+                        <div className="payment-body">
+                          <p className="text-secondary">
+                            Pay with cash when your order is delivered.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Commented out other payment methods for now */}
+                    {/* <div className="payment-item payment-choose-card">
+                      <label
+                        htmlFor="credit-card-method"
+                        className="payment-header collapsed"
                         data-bs-toggle="collapse"
                         data-bs-target="#credit-card-payment"
                         aria-controls="credit-card-payment"
@@ -256,13 +705,12 @@ export default function Checkout() {
                           name="payment-method"
                           className="tf-check-rounded"
                           id="credit-card-method"
-                          defaultChecked
                         />
                         <span className="text-title">Credit Card</span>
                       </label>
                       <div
                         id="credit-card-payment"
-                        className="collapse show"
+                        className="collapse"
                         data-bs-parent="#payment-box"
                       >
                         <div className="payment-body">
@@ -323,28 +771,6 @@ export default function Checkout() {
                     </div>
                     <div className="payment-item">
                       <label
-                        htmlFor="delivery-method"
-                        className="payment-header collapsed"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#delivery-payment"
-                        aria-controls="delivery-payment"
-                      >
-                        <input
-                          type="radio"
-                          name="payment-method"
-                          className="tf-check-rounded"
-                          id="delivery-method"
-                        />
-                        <span className="text-title">Cash on delivery</span>
-                      </label>
-                      <div
-                        id="delivery-payment"
-                        className="collapse"
-                        data-bs-parent="#payment-box"
-                      />
-                    </div>
-                    <div className="payment-item">
-                      <label
                         htmlFor="apple-method"
                         className="payment-header collapsed"
                         data-bs-toggle="collapse"
@@ -401,9 +827,20 @@ export default function Checkout() {
                         className="collapse"
                         data-bs-parent="#payment-box"
                       />
-                    </div>
+                    </div> */}
                   </div>
-                  <button className="tf-btn btn-reset">Payment</button>
+                  <button 
+                    className="tf-btn btn-reset" 
+                    type="submit"
+                    onClick={handlePlaceOrder}
+                    disabled={isSubmitting}
+                    style={{
+                      opacity: isSubmitting ? 0.6 : 1,
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {isSubmitting ? 'Placing Order...' : 'Place Order'}
+                  </button>
                 </form>
               </div>
             </div>
@@ -416,15 +853,21 @@ export default function Checkout() {
               <div className="sidebar-checkout-content">
                 <h5 className="title">Shopping Cart</h5>
                 <div className="list-product">
-                  {cartProducts.map((elm, i) => (
-                    <div key={i} className="item-product">
+                  {cartProducts.map((item, i) => {
+                    const productUrl = item.productSlug 
+                      ? `/product/${item.productSlug}` 
+                      : `/product-detail/${item.productId}`;
+                    const itemTotal = (item.price || 0) * (item.quantity || 1);
+                    
+                    return (
+                      <div key={item.cartItemId || i} className="item-product">
                       <Link
-                        href={`/product-detail/${elm.id}`}
+                          href={productUrl}
                         className="img-product"
                       >
                         <Image
-                          alt="img-product"
-                          src={elm.imgSrc}
+                            alt={item.productTitle || 'Product'}
+                            src={item.productImage || '/images/default-product.jpg'}
                           width={600}
                           height={800}
                         />
@@ -432,103 +875,56 @@ export default function Checkout() {
                       <div className="content-box">
                         <div className="info">
                           <Link
-                            href={`/product-detail/${elm.id}`}
+                              href={productUrl}
                             className="name-product link text-title"
                           >
-                            {elm.title}
+                              {item.productTitle || 'Product'}
                           </Link>
+                            {(item.size || item.color) && (
                           <div className="variant text-caption-1 text-secondary">
-                            <span className="size">XL</span>/
-                            <span className="color">Blue</span>
+                                {item.size && <span className="size">{item.size}</span>}
+                                {item.size && item.color && <span>/</span>}
+                                {item.color && <span className="color">{item.color}</span>}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <div className="total-price text-button">
-                          <span className="count">{elm.quantity}</span>X
-                          <span className="price">${elm.price.toFixed(2)}</span>
+                          <div className="total-price text-button">
+                            <span className="count">{item.quantity || 1}</span>X
+                            <span className="price">{formatPrice(item.price || 0)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="sec-discount">
-                  <Swiper
-                    dir="ltr"
-                    className="swiper tf-sw-categories"
-                    slidesPerView={2.25} // data-preview="2.25"
-                    breakpoints={{
-                      1024: {
-                        slidesPerView: 2.25, // data-tablet={3}
-                      },
-                      768: {
-                        slidesPerView: 3, // data-tablet={3}
-                      },
-                      640: {
-                        slidesPerView: 2.5, // data-mobile-sm="2.5"
-                      },
-                      0: {
-                        slidesPerView: 1.2, // data-mobile="1.2"
-                      },
-                    }}
-                    spaceBetween={20}
-                  >
-                    {discounts.map((item, index) => (
-                      <SwiperSlide key={index}>
-                        <div
-                          className={`box-discount ${
-                            activeDiscountIndex === index ? "active" : ""
-                          }`}
-                          onClick={() => setActiveDiscountIndex(index)}
-                        >
-                          <div className="discount-top">
-                            <div className="discount-off">
-                              <div className="text-caption-1">Discount</div>
-                              <span className="sale-off text-btn-uppercase">
-                                {item.discount}
-                              </span>
-                            </div>
-                            <div className="discount-from">
-                              <p className="text-caption-1">{item.details}</p>
-                            </div>
-                          </div>
-                          <div className="discount-bot">
-                            <span className="text-btn-uppercase">
-                              {item.code}
-                            </span>
-                            <button className="tf-btn">
-                              <span className="text">Apply Code</span>
-                            </button>
-                          </div>
-                        </div>{" "}
-                      </SwiperSlide>
-                    ))}
-                  </Swiper>
-                  <div className="ip-discount-code">
-                    <input type="text" placeholder="Add voucher discount" />
-                    <button className="tf-btn">
-                      <span className="text">Apply Code</span>
-                    </button>
-                  </div>
-                  <p>
-                    Discount code is only used for orders with a total value of
-                    products over $500.00
-                  </p>
+                    );
+                  })}
                 </div>
                 <div className="sec-total-price">
                   <div className="top">
                     <div className="item d-flex align-items-center justify-content-between text-button">
-                      <span>Shipping</span>
-                      <span>Free</span>
+                      <span>Subtotal</span>
+                      <span>{formatPrice(totalPrice)}</span>
                     </div>
                     <div className="item d-flex align-items-center justify-content-between text-button">
-                      <span>Discounts</span>
-                      <span>-$80.00</span>
+                      <span>Shipping</span>
+                      <span>
+                        {shippingCharge === 0 ? (
+                          <span style={{ color: 'green' }}>Free</span>
+                        ) : (
+                          formatPrice(shippingCharge)
+                        )}
+                      </span>
                     </div>
+                    {appliedDiscount > 0 && (
+                      <div className="item d-flex align-items-center justify-content-between text-button">
+                        <span>Discounts</span>
+                        <span style={{ color: 'green' }}>-{formatPrice(appliedDiscount)}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="bottom">
                     <h5 className="d-flex justify-content-between">
                       <span>Total</span>
                       <span className="total-price-checkout">
-                        ${totalPrice.toFixed(2)}
+                        {formatPrice(finalTotal)}
                       </span>
                     </h5>
                   </div>
@@ -538,6 +934,18 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+      <style jsx>{`
+        .delivery-charge-selection .grid-3 {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 15px;
+        }
+        @media (max-width: 768px) {
+          .delivery-charge-selection .grid-3 {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </section>
   );
 }

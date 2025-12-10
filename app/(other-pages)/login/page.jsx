@@ -1,5 +1,5 @@
 import Footer from "@/components/footers/Footer";
-import Header1 from "@/components/headers/Header1";
+import MainHeader from "@/components/headers/MainHeader";
 
 import Login from "@/components/otherPages/Login";
 import Link from "next/link";
@@ -13,10 +13,10 @@ export const metadata = {
 export default function LoginPage() {
   return (
     <>
-      <Header1 />
+      <MainHeader />
       <div
         className="page-title"
-        style={{ backgroundImage: "url(/images/section/page-title.jpg)" }}
+        style={{ backgroundImage: "url(/images/section/page-title.jpg)" , padding :" 20px"}}
       >
         <div className="container-full">
           <div className="row">

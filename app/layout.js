@@ -1,14 +1,25 @@
 "use client";
 import { usePathname } from "next/navigation";
+// CSS Files
+import "../public/css/bootstrap.min.css";
+import "../public/css/bootstrap-select.min.css";
+import "../public/css/swiper-bundle.min.css";
+import "../public/css/animate.css";
+import "../public/css/image-compare-viewer.min.css";
+// Fonts
+import "../public/fonts/fonts.css";
+import "../public/fonts/font-icons.css";
+// SCSS
 import "../public/scss/main.scss";
+// Other CSS
 import "photoswipe/style.css";
 import "react-range-slider-input/dist/style.css";
-import "../public/css/image-compare-viewer.min.css";
 import { useEffect, useState, useRef } from "react";
 import ScrollTop from "@/components/common/ScrollTop";
 import Context from "@/context/Context";
 import CartModal from "@/components/modals/CartModal";
 import QuickView from "@/components/modals/QuickView";
+import QuickView2 from "@/components/modals/QuickView2";
 import QuickAdd from "@/components/modals/QuickAdd";
 import Compare from "@/components/modals/Compare";
 import MobileMenu from "@/components/modals/MobileMenu";
@@ -138,15 +149,16 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="preload-wrapper popup-loader">
         <Context>
-          <RtlToggler />
+          {/* <RtlToggler /> */}
           <div id="wrapper">{children}</div>
           <CartModal />
           <QuickView />
+          <QuickView2 />
           <QuickAdd />
           <Compare />
           <MobileMenu />
 
-          <NewsLetterModal />
+          {/* <NewsLetterModal /> */}
           <SearchModal />
           <SizeGuide />
           <Wishlist />

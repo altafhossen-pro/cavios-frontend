@@ -4,17 +4,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { useContextElement } from "@/context/Context";
 import { products41 } from "@/data/products";
+import { formatPrice } from "@/config/currency";
 export default function CartModal() {
   const {
     cartProducts,
-    setCartProducts,
     totalPrice,
     addProductToCart,
     isAddedToCartProducts,
+    removeCartItem,
+    updateQuantity,
   } = useContextElement();
 
-  const removeItem = (id) => {
-    setCartProducts((pre) => [...pre.filter((elm) => elm.id != id)]);
+  const removeItem = (cartItemId) => {
+    removeCartItem(cartItemId);
   };
 
   const [currentOpenPopup, setCurrentOpenPopup] = useState("");
@@ -23,7 +25,7 @@ export default function CartModal() {
     <div className="modal fullRight fade modal-shopping-cart" id="shoppingCart">
       <div className="modal-dialog">
         <div className="modal-content">
-          <div className="tf-minicart-recommendations">
+          {/* <div className="tf-minicart-recommendations">
             <h6 className="title">You May Also Like</h6>
             <div className="wrap-recommendations">
               <div className="list-cart">
@@ -50,7 +52,7 @@ export default function CartModal() {
                       </div>
                       <div className="cart-item-bot">
                         <div className="text-button price">
-                          ${product.price.toFixed(2)}
+                          {formatPrice(product.price)}
                         </div>
                         <a
                           className="link text-button"
@@ -66,7 +68,7 @@ export default function CartModal() {
                 ))}
               </div>
             </div>
-          </div>
+          </div> */}
           <div className="d-flex flex-column flex-grow-1 h-100">
             <div className="header">
               <h5 className="title">Shopping Cart</h5>
@@ -95,16 +97,16 @@ export default function CartModal() {
                   <div className="tf-mini-cart-sroll">
                     {cartProducts.length ? (
                       <div className="tf-mini-cart-items">
-                        {cartProducts.map((product, i) => (
+                        {cartProducts.map((item, i) => (
                           <div
-                            key={i}
+                            key={item.cartItemId || i}
                             className="tf-mini-cart-item file-delete"
                           >
                             <div className="tf-mini-cart-image">
                               <Image
                                 className="lazyload"
-                                alt=""
-                                src={product.imgSrc}
+                                alt={item.productTitle || ''}
+                                src={item.productImage || '/images/default-product.jpg'}
                                 width={600}
                                 height={800}
                               />
@@ -113,24 +115,25 @@ export default function CartModal() {
                               <div className="mb_12 d-flex align-items-center justify-content-between flex-wrap gap-12">
                                 <div className="text-title">
                                   <Link
-                                    href={`/product-detail/${product.id}`}
+                                    href={`/product-detail/${item.productSlug || item.productId}`}
                                     className="link text-line-clamp-1"
                                   >
-                                    {product.title}
+                                    {item.productTitle}
                                   </Link>
                                 </div>
                                 <div
                                   className="text-button tf-btn-remove remove"
-                                  onClick={() => removeItem(product.id)}
+                                  onClick={() => removeItem(item.cartItemId)}
                                 >
                                   Remove
                                 </div>
                               </div>
                               <div className="d-flex align-items-center justify-content-between flex-wrap gap-12">
-                                <div className="text-secondary-2">XL/Blue</div>
+                                <div className="text-secondary-2">
+                                  {item.size && item.color ? `${item.size}/${item.color}` : item.variantSku || ''}
+                                </div>
                                 <div className="text-button">
-                                  {product.quantity} X $
-                                  {product.price.toFixed(2)}
+                                  {item.quantity || 1} X {formatPrice(item.price)}
                                 </div>
                               </div>
                             </div>
@@ -149,7 +152,7 @@ export default function CartModal() {
                   </div>
                 </div>
                 <div className="tf-mini-cart-bottom">
-                  <div className="tf-mini-cart-tool">
+                  {/* <div className="tf-mini-cart-tool">
                     <div
                       className="tf-mini-cart-tool-btn btn-add-note"
                       onClick={() => setCurrentOpenPopup("add-note")}
@@ -260,12 +263,12 @@ export default function CartModal() {
                       </svg>
                       <div className="text-caption-1">Coupon</div>
                     </div>
-                  </div>
+                  </div> */}
                   <div className="tf-mini-cart-bottom-wrap">
                     <div className="tf-cart-totals-discounts">
                       <h5>Subtotal</h5>
                       <h5 className="tf-totals-total-value">
-                        ${totalPrice.toFixed(2)}
+                        {formatPrice(totalPrice)}
                       </h5>
                     </div>
                     <div className="tf-cart-checkbox">
@@ -289,13 +292,13 @@ export default function CartModal() {
                     </div>
                     <div className="tf-mini-cart-view-checkout">
                       <Link
-                        href={`/shopping-cart`}
+                        href={`/cart`}
                         className="tf-btn w-100 btn-white radius-4 has-border"
                       >
                         <span className="text">View cart</span>
                       </Link>
                       <Link
-                        href={`/shopping-cart`}
+                        href={`/cart`}
                         className="tf-btn w-100 btn-fill radius-4"
                       >
                         <span className="text">Check Out</span>
@@ -312,9 +315,8 @@ export default function CartModal() {
                   </div>
                 </div>
                 <div
-                  className={`tf-mini-cart-tool-openable ${
-                    currentOpenPopup == "add-note" ? "open" : ""
-                  }`}
+                  className={`tf-mini-cart-tool-openable ${currentOpenPopup == "add-note" ? "open" : ""
+                    }`}
                 >
                   <div className="tf-mini-cart-tool-content">
                     <label
@@ -381,9 +383,8 @@ export default function CartModal() {
                   </div>
                 </div>
                 <div
-                  className={`tf-mini-cart-tool-openable ${
-                    currentOpenPopup == "estimate-shipping" ? "open" : ""
-                  } `}
+                  className={`tf-mini-cart-tool-openable ${currentOpenPopup == "estimate-shipping" ? "open" : ""
+                    } `}
                 >
                   <div className="tf-mini-cart-tool-content">
                     <label className="tf-mini-cart-tool-text">
@@ -611,9 +612,8 @@ export default function CartModal() {
                   </div>
                 </div>
                 <div
-                  className={`tf-mini-cart-tool-openable ${
-                    currentOpenPopup == "add-coupon" ? "open" : ""
-                  } `}
+                  className={`tf-mini-cart-tool-openable ${currentOpenPopup == "add-coupon" ? "open" : ""
+                    } `}
                 >
                   <div className="tf-mini-cart-tool-content">
                     <label className="tf-mini-cart-tool-text">
