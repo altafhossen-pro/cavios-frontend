@@ -1,11 +1,12 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { getOrderById } from "@/features/order/api/orderApi";
 import Link from "next/link";
 
-export default function OrderDetails() {
+// Inner component that uses useSearchParams
+function OrderDetailsContent() {
   const [activeTab, setActiveTab] = useState(1);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -484,6 +485,23 @@ export default function OrderDetails() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Wrapper component with Suspense boundary
+export default function OrderDetails() {
+  return (
+    <Suspense fallback={
+      <div className="my-account-content">
+        <div className="account-order-details">
+          <div className="text-center" style={{ padding: "40px" }}>
+            <p>Loading order details...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <OrderDetailsContent />
+    </Suspense>
   );
 }
 

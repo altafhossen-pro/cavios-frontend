@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useLayoutEffect } from "react";
+import { useEffect, useState, useRef, useLayoutEffect, Suspense } from "react";
 import {
   availabilityOptions,
   brands,
@@ -12,7 +12,8 @@ import { formatCategoriesForDisplay } from "@/features/category/utils/formatCate
 import RangeSlider from "react-range-slider-input";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function FilterModal({ allProps, isOpen: isOpenProp, setIsOpen: setIsOpenProp }) {
+// Inner component that uses useSearchParams
+function FilterModalContent({ allProps, isOpen: isOpenProp, setIsOpen: setIsOpenProp }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [categories, setCategories] = useState([]);
@@ -478,5 +479,18 @@ export default function FilterModal({ allProps, isOpen: isOpenProp, setIsOpen: s
       </div>
       </div>
     </>
+  );
+}
+
+// Wrapper component with Suspense boundary
+export default function FilterModal({ allProps, isOpen: isOpenProp, setIsOpen: setIsOpenProp }) {
+  return (
+    <Suspense fallback={null}>
+      <FilterModalContent 
+        allProps={allProps} 
+        isOpen={isOpenProp} 
+        setIsOpen={setIsOpenProp} 
+      />
+    </Suspense>
   );
 }

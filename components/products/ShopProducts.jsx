@@ -4,7 +4,7 @@ import LayoutHandler from "./LayoutHandler";
 import Sorting from "./Sorting";
 import Listview from "./Listview";
 import GridView from "./GridView";
-import { useEffect, useReducer, useState, useCallback, useRef } from "react";
+import { useEffect, useReducer, useState, useCallback, useRef, Suspense } from "react";
 import FilterModal from "./FilterModal";
 import { initialState, reducer } from "@/reducer/filterReducer";
 import FilterMeta from "./FilterMeta";
@@ -15,7 +15,8 @@ import { getCategories } from "@/features/category/api/categoryApi";
 import Pagination from "@/components/common/Pagination";
 import ProductSkeleton from "./ProductSkeleton";
 
-export default function ShopProducts({ parentClass = "flat-spacing" }) {
+// Inner component that uses useSearchParams
+function ShopProductsContent({ parentClass = "flat-spacing" }) {
     const searchParams = useSearchParams();
     const categorySlug = searchParams.get("category");
 
@@ -444,6 +445,25 @@ export default function ShopProducts({ parentClass = "flat-spacing" }) {
                 setIsOpen={setIsFilterSidebarOpen}
             />
         </>
+    );
+}
+
+// Wrapper component with Suspense boundary
+export default function ShopProducts({ parentClass = "flat-spacing" }) {
+    return (
+        <Suspense fallback={
+            <section className={parentClass}>
+                <div className="container">
+                    <div className="wrapper-control-shop">
+                        <div className={`tf-grid-layout wrapper-shop tf-col-4`}>
+                            <ProductSkeleton count={12} gridClass="" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+        }>
+            <ShopProductsContent parentClass={parentClass} />
+        </Suspense>
     );
 }
 

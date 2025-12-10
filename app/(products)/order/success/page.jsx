@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import MainHeader from "@/components/headers/MainHeader";
@@ -7,7 +7,8 @@ import Footer from "@/components/footers/Footer";
 import { getOrderById } from "@/features/order/api/orderApi";
 import { formatPrice } from "@/config/currency";
 
-export default function OrderSuccessPage() {
+// Inner component that uses useSearchParams
+function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const orderId = searchParams.get("orderId");
@@ -255,6 +256,29 @@ export default function OrderSuccessPage() {
       </section>
       <Footer />
     </>
+  );
+}
+
+// Wrapper component with Suspense boundary
+export default function OrderSuccessPage() {
+  return (
+    <Suspense fallback={
+      <>
+        <MainHeader />
+        <section className="flat-spacing">
+          <div className="container">
+            <div className="row">
+              <div className="col-12 text-center" style={{ padding: '60px 0' }}>
+                <div style={{ fontSize: '18px' }}>Loading order details...</div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <Footer />
+      </>
+    }>
+      <OrderSuccessContent />
+    </Suspense>
   );
 }
 
