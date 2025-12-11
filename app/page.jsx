@@ -26,11 +26,11 @@ export default function HomePage() {
       <Collections />
       {/* <Products /> */}
       <Products4 />
-      {/* <BannerCollection /> */}
-      {/* <BannerCountdown /> */}
+      <BannerCollection />
+      <BannerCountdown />
       <Testimonials />
-      {/* <Blogs /> */}
-      {/* <ShopGram /> */}
+       <Blogs /> 
+      <ShopGram /> 
       <Features />
       <Footer />
     </>
