@@ -218,33 +218,6 @@ export default function Footer({
                           </div>
                           <div className="subscribe-msg" />
                         </form>
-                        <div className="tf-cart-checkbox">
-                          <div className="tf-checkbox-wrapp">
-                            <input
-                              className=""
-                              type="checkbox"
-                              id="footer-Form_agree"
-                              name="agree_checkbox"
-                            />
-                            <div>
-                              <i className="icon-check" />
-                            </div>
-                          </div>
-                          <label
-                            className="text-caption-1"
-                            htmlFor="footer-Form_agree"
-                          >
-                            By clicking subcribe, you agree to the{" "}
-                            <Link className="fw-6 link" href={`/term-of-use`}>
-                              Terms of Service
-                            </Link>{" "}
-                            and{" "}
-                            <a className="fw-6 link" href="#">
-                              Privacy Policy
-                            </a>
-                            .
-                          </label>
-                        </div>
                       </div>
                     </div>
                   </div>

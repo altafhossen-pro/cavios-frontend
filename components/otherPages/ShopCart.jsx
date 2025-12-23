@@ -46,9 +46,6 @@ const shippingOptions = [
 const FREE_SHIPPING_THRESHOLD = 200;
 
 export default function ShopCart() {
-  const [activeDiscountIndex, setActiveDiscountIndex] = useState(1);
-  const [selectedOption, setSelectedOption] = useState(shippingOptions[0]);
-  const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { 
     cartProducts, 
@@ -105,10 +102,6 @@ export default function ShopCart() {
 
   const handleRemoveItem = (cartItemId) => {
     removeCartItem(cartItemId);
-  };
-
-  const handleOptionChange = (elm) => {
-    setSelectedOption(elm);
   };
 
   // Update free shipping progress bar
@@ -479,66 +472,16 @@ export default function ShopCart() {
                     <span>Subtotal</span>
                     <span className="total">{formatPrice(totalPrice)}</span>
                   </div>
-                  <div className="discount text-button d-flex justify-content-between align-items-center">
-                    <span>Discounts</span>
-                    <span className="total">{formatPrice(0)}</span>
-                  </div>
-                  <div className="ship">
-                    <span className="text-button">Shipping</span>
-                    <div className="flex-grow-1">
-                      {shippingOptions.map((option) => (
-                        <fieldset key={option.id} className="ship-item">
-                          <input
-                            type="radio"
-                            name="ship-check"
-                            className="tf-check-rounded"
-                            id={option.id}
-                            checked={selectedOption === option}
-                            onChange={() => handleOptionChange(option)}
-                          />
-                            <label htmlFor={option.id}>
-                            <span>{option.label}</span>
-                            <span className="price">
-                              {formatPrice(option.price)}
-                            </span>
-                          </label>
-                        </fieldset>
-                      ))}
-                    </div>
-                  </div>
                   <h5 className="total-order d-flex justify-content-between align-items-center">
                     <span>Total</span>
                     <span className="total">
-                      {formatPrice(totalPrice + selectedOption.price)}
+                      {formatPrice(totalPrice)}
                     </span>
                   </h5>
                   <div className="box-progress-checkout">
-                    <fieldset className="check-agree">
-                      <input
-                        type="checkbox"
-                        id="check-agree"
-                        className="tf-check-rounded"
-                        checked={agreeToTerms}
-                        onChange={(e) => setAgreeToTerms(e.target.checked)}
-                      />
-                      <label htmlFor="check-agree">
-                        I agree with the
-                        <Link href={`/term-of-use`}>terms and conditions</Link>
-                      </label>
-                    </fieldset>
-                    {agreeToTerms ? (
-                      <Link href={`/checkout`} className="tf-btn btn-reset">
-                        Process To Checkout
-                      </Link>
-                    ) : (
-                      <button 
-                        className="tf-btn btn-reset" 
-                        disabled
-                        style={{ cursor: 'not-allowed', opacity: 0.6 }}
-                      >
-                        Process To Checkout
-                      </button>
-                    )}
+                    <Link href={`/checkout`} className="tf-btn btn-reset">
+                      Process To Checkout
+                    </Link>
                     <p className="text-button text-center">
                       Or continue shopping
                     </p>

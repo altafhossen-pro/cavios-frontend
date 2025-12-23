@@ -120,6 +120,9 @@ export const formatProductForDisplay = (product) => {
     hoverImageUrl = `/${hoverImageUrl}`;
   }
 
+  // Only set imgHover if hoverImageUrl exists and is different from main image
+  const finalHoverImage = (hoverImageUrl && hoverImageUrl !== imageUrl) ? hoverImageUrl : null;
+
   return {
     id: product._id || product.id,
     title: product.title || 'Product',
@@ -127,7 +130,7 @@ export const formatProductForDisplay = (product) => {
     price: price,
     oldPrice: oldPrice,
     imgSrc: imageUrl,
-    imgHover: hoverImageUrl || imageUrl, // Use main image as fallback
+    imgHover: finalHoverImage, // null if no hover image (don't use main image as fallback)
     gallery: product.gallery || [],
     inStock: inStock,
     isNew: product.isNewArrival || false,

@@ -17,9 +17,11 @@ export default function ProductCard1({
   const mainImage = product.imgSrc && product.imgSrc.trim() !== '' 
     ? product.imgSrc 
     : defaultImage;
-  const hoverImage = product.imgHover && product.imgHover.trim() !== '' 
+  
+  // Only use hover image if it exists and is different from main image
+  const hoverImage = product.imgHover && product.imgHover.trim() !== '' && product.imgHover !== product.imgSrc
     ? product.imgHover 
-    : mainImage; // Use main image as fallback for hover
+    : null; // null means no hover image, so same image will be shown
 
   const [currentImage, setCurrentImage] = useState(mainImage);
 
@@ -30,6 +32,7 @@ export default function ProductCard1({
     addToCompareItem,
     isAddedtoCompareItem,
     setQuickViewItem,
+    setQuickViewItem2,
     addProductToCart,
     isAddedToCartProducts,
   } = useContextElement();
@@ -50,7 +53,7 @@ export default function ProductCard1({
       <div
         className={`card-product-wrapper ${
           isNotImageRatio ? "aspect-ratio-0" : ""
-        } ${radiusClass} `}
+        } ${radiusClass} ${!hoverImage || hoverImage === mainImage ? 'no-hover-image' : ''}`}
       >
         <Link href={`/product/${product.slug || product.id}`} className="product-img">
           <Image
@@ -64,6 +67,7 @@ export default function ProductCard1({
             }}
           />
 
+          {/* Only show hover image if it exists and is different from main image */}
           {hoverImage && hoverImage !== mainImage && (
             <Image
               className="lazyload img-hover"
@@ -217,7 +221,8 @@ export default function ProductCard1({
                 : "Wishlist"}
             </span>
           </a>
-          <a
+          {/* Compare feature commented out */}
+          {/* <a
             href="#compare"
             data-bs-toggle="offcanvas"
             aria-controls="compare"
@@ -230,10 +235,10 @@ export default function ProductCard1({
                 ? "Already compared"
                 : "Compare"}
             </span>
-          </a>
+          </a> */}
           <a
-            href="#quickView"
-            onClick={() => setQuickViewItem(product)}
+            href="#quickView2"
+            onClick={() => setQuickViewItem2 && setQuickViewItem2(product)}
             data-bs-toggle="modal"
             className="box-icon quickview tf-btn-loading"
           >
@@ -254,7 +259,7 @@ export default function ProductCard1({
           ) : (
             <a
               className="btn-main-product"
-              onClick={() => addProductToCart(product.id)}
+              onClick={() => addProductToCart(product.id, 1, true, product)}
             >
               {isAddedToCartProducts(product.id)
                 ? "Already Added"

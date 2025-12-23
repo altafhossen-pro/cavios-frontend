@@ -103,7 +103,7 @@ export default function Collections() {
               className="collection-position-2 radius-lg style-3 hover-img"
             >
               <Link
-                href={category.slug ? `/shop-default-grid?category=${category.slug}` : `/shop-default-grid`}
+                href={category.slug ? `/shop?category=${category.slug}` : `/shop`}
                 className="img-style"
                 style={{ aspectRatio: "3/4" }}
               >
@@ -126,7 +126,7 @@ export default function Collections() {
               </Link>
               <div className="content">
                 <Link
-                  href={category.slug ? `/shop-default-grid?category=${category.slug}` : `/shop-default-grid`}
+                  href={category.slug ? `/shop?category=${category.slug}` : `/shop`}
                   className="cls-btn"
                 >
                   <h6 className="text">{category.title}</h6>

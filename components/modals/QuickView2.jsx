@@ -7,12 +7,14 @@ import Grid6 from "../productDetails/grids/Grid6";
 import { useContextElement } from "@/context/Context";
 import QuantitySelect from "../productDetails/QuantitySelect";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatPrice, formatPriceRange } from "@/config/currency";
 
 export default function QuickView2() {
   const [activeColor, setActiveColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const router = useRouter();
   
   const {
     quickViewItem2,
@@ -68,7 +70,22 @@ export default function QuickView2() {
     });
   };
   
-  const selectedVariant = getSelectedVariant();
+  const selectedVariant = useMemo(() => getSelectedVariant(), [selectedSize, activeColor, variants]);
+  
+  // Check if variant is out of stock
+  const isOutOfStock = useMemo(() => {
+    if (!selectedVariant) {
+      // If no variant selected yet, don't show as out of stock
+      // User needs to select size and color first
+      return false;
+    }
+    // Check variant stock
+    if (selectedVariant.stockQuantity !== null && selectedVariant.stockQuantity !== undefined) {
+      return selectedVariant.stockQuantity === 0;
+    }
+    // If no stock info, assume in stock
+    return false;
+  }, [selectedVariant]);
   
   // Get price from selected variant, or calculate priceRange from all variants
   const getVariantPrice = () => {
@@ -396,14 +413,30 @@ export default function QuickView2() {
     }, 100);
   }, [selectedSize]);
 
-  // Adjust quantity when variant changes to respect stock limits
+  // Reset quantity to 1 when variant changes
+  const previousVariantSkuRef = useRef(null);
+  
   useEffect(() => {
-    if (selectedVariant && selectedVariant.stockQuantity !== null && selectedVariant.stockQuantity !== undefined) {
-      if (quantity > selectedVariant.stockQuantity) {
-        setQuantity(selectedVariant.stockQuantity);
-      }
+    const currentVariantSku = selectedVariant?.sku || null;
+    
+    // If variant changed (different SKU), reset quantity to 1
+    if (previousVariantSkuRef.current !== null && previousVariantSkuRef.current !== currentVariantSku) {
+      setQuantity(1);
     }
-  }, [selectedVariant]);
+    
+    // Update previous variant SKU
+    previousVariantSkuRef.current = currentVariantSku;
+    
+    // Also adjust quantity if it exceeds stock limit (only if variant is selected)
+    if (selectedVariant && selectedVariant.stockQuantity !== null && selectedVariant.stockQuantity !== undefined) {
+      setQuantity(prevQty => {
+        if (prevQty > selectedVariant.stockQuantity) {
+          return Math.min(prevQty, selectedVariant.stockQuantity);
+        }
+        return prevQty;
+      });
+    }
+  }, [selectedVariant?.sku, selectedVariant?.stockQuantity]);
   
   // Get current image based on active color
   const getCurrentImage = () => {
@@ -636,6 +669,8 @@ export default function QuickView2() {
                         : quantity
                     }
                     setQuantity={(qty) => {
+                      if (isOutOfStock) return;
+                      
                       // Get stock quantity from selected variant
                       const stockQty = selectedVariant?.stockQuantity;
                       
@@ -657,14 +692,23 @@ export default function QuickView2() {
                       }
                     }}
                     maxQuantity={selectedVariant?.stockQuantity || null}
+                    disabled={isOutOfStock}
                   />
+                  {isOutOfStock && (
+                    <div className="text-danger text-caption-2 mt-2" style={{ fontSize: '12px' }}>
+                      This variant is out of stock
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="tf-product-info-by-btn mb_10">
                     <a
-                      className="btn-style-2 flex-grow-1 text-btn-uppercase fw-6 show-shopping-cart"
+                      className={`btn-style-2 flex-grow-1 text-btn-uppercase fw-6 show-shopping-cart ${isOutOfStock ? 'disabled' : ''}`}
                       onClick={(e) => {
                         e.preventDefault();
+                        if (isOutOfStock) {
+                          return;
+                        }
                         if (!selectedVariant || !selectedSize || !activeColor) {
                           alert('Please select size and color');
                           return;
@@ -688,15 +732,20 @@ export default function QuickView2() {
                           stockQuantity: selectedVariant.stockQuantity || null,
                         }, true);
                       }}
+                      style={isOutOfStock ? { opacity: 0.6, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
                     >
                       <span>
-                        {selectedVariant && isVariantAddedToCart(product.id, selectedVariant.sku)
+                        {isOutOfStock
+                          ? "Out of Stock"
+                          : selectedVariant && isVariantAddedToCart(product.id, selectedVariant.sku)
                           ? "Already Added"
                           : "Add to cart -"}
                       </span>
-                      <span className="tf-qty-price total-price">
-                        {formatPrice(currentPrice * quantity)}
-                      </span>
+                      {!isOutOfStock && (
+                        <span className="tf-qty-price total-price">
+                          {formatPrice(currentPrice * quantity)}
+                        </span>
+                      )}
                     </a>
                     <a
                       href="#compare"
@@ -724,12 +773,58 @@ export default function QuickView2() {
                       </span>
                     </a>
                   </div>
-                  <Link 
-                    href={`/product-detail/${product.slug || product.id}`}
-                    className="btn-style-3 text-btn-uppercase"
+                  <a
+                    href={isOutOfStock ? "#" : `/cart`}
+                    onClick={(e) => {
+                      if (isOutOfStock) {
+                        e.preventDefault();
+                        return;
+                      }
+                      if (!selectedVariant || !selectedSize || !activeColor) {
+                        e.preventDefault();
+                        alert('Please select size and color');
+                        return;
+                      }
+                      
+                      e.preventDefault();
+                      
+                      const sizeAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'size');
+                      const colorAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'color');
+                      
+                      // Add to cart first
+                      addVariantToCart({
+                        productId: String(product.id),
+                        productSlug: product.slug || '',
+                        productTitle: product.title || '',
+                        productImage: product.featuredImage || product.imgSrc || '',
+                        variantSku: selectedVariant.sku,
+                        size: sizeAttr?.value || selectedSize,
+                        color: colorAttr?.value || colorAttr?.displayValue || activeColor,
+                        colorHexCode: colorAttr?.hexCode || '',
+                        price: currentPrice,
+                        originalPrice: originalPrice,
+                        quantity: quantity,
+                        stockQuantity: selectedVariant.stockQuantity || null,
+                      }, false); // Don't open cart modal
+                      
+                      // Close quick view modal
+                      const bootstrap = require("bootstrap");
+                      const modalElement = document.getElementById("quickView2");
+                      if (modalElement) {
+                        const modal = bootstrap.Modal.getInstance(modalElement);
+                        if (modal) {
+                          modal.hide();
+                        }
+                      }
+                      
+                      // Navigate to cart page
+                      router.push('/cart');
+                    }}
+                    className={`btn-style-3 text-btn-uppercase ${isOutOfStock ? 'disabled' : ''}`}
+                    style={isOutOfStock ? { opacity: 0.6, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
                   >
-                    Buy it now
-                  </Link>
+                    {isOutOfStock ? "Out of Stock" : "Buy it now"}
+                  </a>
                 </div>
               </div>
             </div>

@@ -29,8 +29,8 @@ export default function HomePage() {
       <BannerCollection />
       <BannerCountdown />
       <Testimonials />
-       <Blogs /> 
-      <ShopGram /> 
+      <Blogs />
+      <ShopGram />
       <Features />
       <Footer />
     </>

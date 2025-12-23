@@ -1,5 +1,5 @@
 import Footer from "@/components/footers/Footer";
-import Header1 from "@/components/headers/Header1";
+import MainHeader from "@/components/headers/MainHeader";
 
 import RecentProducts from "@/components/otherPages/RecentProducts";
 import ShopCart from "@/components/otherPages/ShopCart";
@@ -14,7 +14,7 @@ export const metadata = {
 export default function ShopingCartPage() {
   return (
     <>
-      <Header1 />
+      <MainHeader />
       <div
         className="page-title"
         style={{ backgroundImage: "url(/images/section/page-title.jpg)" }}

@@ -6,7 +6,17 @@ import CountdownTimer from "../common/Countdown";
 import { formatPrice } from "@/config/currency";
 import { useContextElement } from "@/context/Context";
 export default function ProductsCards6({ product }) {
-  const [currentImage, setCurrentImage] = useState(product.imgSrc);
+  const defaultImage = '/images/logo/logo.svg';
+  const mainImage = product.imgSrc && product.imgSrc.trim() !== '' 
+    ? product.imgSrc 
+    : defaultImage;
+  
+  // Only use hover image if it exists and is different from main image
+  const hoverImage = product.imgHover && product.imgHover.trim() !== '' && product.imgHover !== product.imgSrc
+    ? product.imgHover 
+    : null; // null means no hover image, so same image will be shown
+
+  const [currentImage, setCurrentImage] = useState(mainImage);
 
   const {
     setQuickAddItem,
@@ -15,12 +25,16 @@ export default function ProductsCards6({ product }) {
     addToCompareItem,
     isAddedtoCompareItem,
     setQuickViewItem,
+    setQuickViewItem2,
     addProductToCart,
     isAddedToCartProducts,
   } = useContextElement();
 
   useEffect(() => {
-    setCurrentImage(product.imgSrc);
+    const newImage = product.imgSrc && product.imgSrc.trim() !== '' 
+      ? product.imgSrc 
+      : defaultImage;
+    setCurrentImage(newImage);
   }, [product]);
   return (
     <div
@@ -28,22 +42,31 @@ export default function ProductsCards6({ product }) {
       data-availability="In stock"
       data-brand="gucci"
     >
-      <div className="card-product-wrapper">
+      <div className={`card-product-wrapper ${!hoverImage || hoverImage === mainImage ? 'no-hover-image' : ''}`}>
         <Link href={`/product-detail/${product.id}`} className="product-img">
           <Image
             className="lazyload img-product"
-            src={currentImage}
+            src={currentImage || defaultImage}
             alt={product.title}
             width={600}
             height={800}
+            onError={(e) => {
+              e.target.src = defaultImage;
+            }}
           />
-          <Image
-            className="lazyload img-hover"
-            src={product.imgHover}
-            alt={product.title}
-            width={600}
-            height={800}
-          />
+          {/* Only show hover image if it exists and is different from main image */}
+          {hoverImage && hoverImage !== mainImage && (
+            <Image
+              className="lazyload img-hover"
+              src={hoverImage}
+              alt={product.title}
+              width={600}
+              height={800}
+              onError={(e) => {
+                e.target.src = defaultImage;
+              }}
+            />
+          )}
         </Link>
         {product.isOnSale && (
           <div className="on-sale-wrap">
@@ -100,7 +123,7 @@ export default function ProductsCards6({ product }) {
           )}
           <div className="list-product-btn">
             <a
-              onClick={() => addProductToCart(product.id)}
+              onClick={() => addProductToCart(product.id, 1, true, product)}
               className="btn-main-product"
             >
               {isAddedToCartProducts(product.id)
@@ -118,7 +141,8 @@ export default function ProductsCards6({ product }) {
                   : "Wishlist"}
               </span>
             </a>
-            <a
+            {/* Compare feature commented out */}
+            {/* <a
               href="#compare"
               data-bs-toggle="offcanvas"
               aria-controls="compare"
@@ -132,10 +156,10 @@ export default function ProductsCards6({ product }) {
                   ? "Already compared"
                   : "Compare"}
               </span>
-            </a>
+            </a> */}
             <a
-              href="#quickView"
-              onClick={() => setQuickViewItem(product)}
+              href="#quickView2"
+              onClick={() => setQuickViewItem2 && setQuickViewItem2(product)}
               data-bs-toggle="modal"
               className="box-icon quickview tf-btn-loading"
             >

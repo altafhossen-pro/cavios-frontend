@@ -246,7 +246,7 @@ export default function Collections() {
               <SwiperSlide key={collection.id || index}>
                 <div className="collection-circle hover-img">
                   <Link 
-                    href={collection.slug ? `/shop-collection?category=${collection.slug}` : `/shop-collection`} 
+                    href={collection.slug ? `/shop?category=${collection.slug}` : `/shop`} 
                     className="img-style"
                     style={{ aspectRatio: '1/1' }}
                   >
@@ -271,7 +271,7 @@ export default function Collections() {
                   <div className="collection-content text-center">
                     <div>
                       <Link 
-                        href={collection.slug ? `/shop-collection?category=${collection.slug}` : `/shop-collection`} 
+                        href={collection.slug ? `/shop?category=${collection.slug}` : `/shop`} 
                         className="cls-title"
                       >
                         <h6 className="text">{collection.title}</h6>

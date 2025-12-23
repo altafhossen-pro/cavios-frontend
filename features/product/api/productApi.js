@@ -182,3 +182,23 @@ export const getAvailableFilters = async (params = {}) => {
   }
 };
 
+/**
+ * Get similar products based on product ID
+ * @param {string} productId - Product ID to find similar products for
+ * @param {Object} params - Query parameters (limit, minRequired)
+ * @returns {Promise} API response with similar products
+ */
+export const getSimilarProducts = async (productId, params = {}) => {
+  try {
+    const response = await apiClient.get(`/product/similar/${productId}`, { params });
+    return {
+      success: response.data.success,
+      data: response.data.data || [],
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error('Error fetching similar products:', error);
+    throw error;
+  }
+};
+

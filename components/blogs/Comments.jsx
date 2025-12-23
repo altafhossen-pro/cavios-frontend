@@ -1,55 +1,85 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
-export default function Comments() {
-  return (
-    <div className="reply-comment">
-      <h4 className="reply-comment-heading">03 Comments</h4>
-      <div className="reply-comment-wrap">
-        <div className="reply-comment-item">
-          <div className="image">
-            <Image
-              alt="Avatar"
-              src="/images/avatar/user-1.jpg"
-              width={90}
-              height={113}
-            />
-          </div>
-          <div className="content">
-            <div>
-              <h6>
-                <a href="#" className="link">
-                  Guy Hawkins
-                </a>
-              </h6>
-              <div className="day text-caption-1">August 13, 2024</div>
-            </div>
-            <p>
-              Lorem ipsum dolor sit amet consectetur. Cursus nunc pharetra arcu
-              quam turpis risus amet turpis. Facilisis elementum tincidunt
-              pellentesque sed rutrum enim.
-            </p>
-            <div>
-              <a className="text-button" href="#">
-                Reply
-              </a>
-            </div>
+import { getBlogComments } from "@/features/blog/api/blogCommentApi";
+
+export default function Comments({ blogId }) {
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (blogId) {
+      fetchComments();
+    }
+  }, [blogId]);
+
+  const fetchComments = async () => {
+    setLoading(true);
+    try {
+      const response = await getBlogComments(blogId);
+      if (response.success) {
+        setComments(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "U";
+    const names = name.split(" ");
+    if (names.length >= 2) {
+      return (names[0][0] + names[1][0]).toUpperCase();
+    }
+    return name[0].toUpperCase();
+  };
+
+  const renderComment = (comment, isReply = false) => {
+    return (
+      <div key={comment._id || comment.id} className={`reply-comment-item ${isReply ? 'type-reply' : ''}`}>
+        <div className="image">
+          {/* Default avatar with initials */}
+          <div
+            style={{
+              width: 90,
+              height: 113,
+              backgroundColor: '#f0f0f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '8px',
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: '#666',
+            }}
+          >
+            {getInitials(comment.name)}
           </div>
         </div>
-        <div className="reply-comment-item type-reply">
-          <div className="image">
-            <Image
-              alt="Avatar"
-              src="/images/avatar/user-2.jpg"
-              width={90}
-              height={113}
-            />
-          </div>
-          <div className="content">
-            <div>
+        <div className="content">
+          <div>
+            {!isReply && (
+              <h6>
+                <a href="#" className="link">
+                  {comment.name}
+                </a>
+              </h6>
+            )}
+            {isReply && (
               <div className="d-flex gap-12 align-items-center">
                 <h6>
                   <a href="#" className="link">
-                    Eleanor Pena
+                    {comment.name}
                   </a>
                 </h6>
                 <div className="box-check">
@@ -67,11 +97,45 @@ export default function Comments() {
                   </svg>
                 </div>
               </div>
-              <div className="day text-caption-1">August 13, 2024</div>
-            </div>
-            <p>Great choice of Acronym AF1’s</p>
+            )}
+            <div className="day text-caption-1">{formatDate(comment.createdAt)}</div>
           </div>
+          <p>{comment.comment}</p>
         </div>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="reply-comment">
+        <h4 className="reply-comment-heading">Loading comments...</h4>
+      </div>
+    );
+  }
+
+  const totalComments = comments.reduce((sum, comment) => {
+    return sum + 1 + (comment.replies?.length || 0);
+  }, 0);
+
+  return (
+    <div className="reply-comment">
+      <h4 className="reply-comment-heading">
+        {totalComments} {totalComments === 1 ? 'Comment' : 'Comments'}
+      </h4>
+      <div className="reply-comment-wrap">
+        {comments.length === 0 ? (
+          <p>No comments yet. Be the first to comment!</p>
+        ) : (
+          comments.map((comment) => (
+            <React.Fragment key={comment._id || comment.id}>
+              {renderComment(comment, false)}
+              {comment.replies && comment.replies.length > 0 && (
+                comment.replies.map((reply) => renderComment(reply, true))
+              )}
+            </React.Fragment>
+          ))
+        )}
       </div>
     </div>
   );

@@ -17,9 +17,11 @@ export default function ProductCard6({
   const mainImage = product.imgSrc && product.imgSrc.trim() !== '' 
     ? product.imgSrc 
     : defaultImage;
-  const hoverImage = product.imgHover && product.imgHover.trim() !== '' 
+  
+  // Only use hover image if it exists and is different from main image
+  const hoverImage = product.imgHover && product.imgHover.trim() !== '' && product.imgHover !== product.imgSrc
     ? product.imgHover 
-    : mainImage; // Use main image as fallback for hover
+    : null; // null means no hover image, so same image will be shown
 
   const [currentImage, setCurrentImage] = useState(mainImage);
 
@@ -52,7 +54,7 @@ export default function ProductCard6({
       <div
         className={`card-product-wrapper ${
           isNotImageRatio ? "aspect-ratio-0" : ""
-        } ${radiusClass} `}
+        } ${radiusClass} ${!hoverImage || hoverImage === mainImage ? 'no-hover-image' : ''}`}
       >
         <Link href={`/product/${product.slug}`} className="product-img">
           <Image
@@ -66,6 +68,7 @@ export default function ProductCard6({
             }}
           />
 
+          {/* Only show hover image if it exists and is different from main image */}
           {hoverImage && hoverImage !== mainImage && (
             <Image
               className="lazyload img-hover"

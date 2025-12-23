@@ -5,6 +5,7 @@ import ColorSelect2 from "../ColorSelect2";
 import SizeSelect2 from "../SizeSelect2";
 import QuantitySelect from "../QuantitySelect";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useContextElement } from "@/context/Context";
 import ProductStikyBottom from "../ProductStikyBottom";
 import { CURRENCY_SYMBOL, formatPrice } from "@/config/currency";
@@ -13,6 +14,7 @@ export default function NewDetails({ product }) {
   const [activeColor, setActiveColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const router = useRouter();
   const {
     addProductToCart,
     isAddedToCartProducts,
@@ -602,7 +604,8 @@ export default function NewDetails({ product }) {
                               : formatPrice(currentPrice * quantity)}{" "}
                           </span>
                         </a>
-                        <a
+                        {/* Compare feature commented out */}
+                        {/* <a
                           href="#compare"
                           data-bs-toggle="offcanvas"
                           aria-controls="compare"
@@ -615,7 +618,7 @@ export default function NewDetails({ product }) {
                               ? "Already compared"
                               : "Compare"}
                           </span>
-                        </a>
+                        </a> */}
                         <a
                           onClick={() => addToWishlist(product?.id)}
                           className="box-icon hover-tooltip text-caption-2 wishlist btn-icon-action"
@@ -628,7 +631,45 @@ export default function NewDetails({ product }) {
                           </span>
                         </a>
                       </div>
-                      <a href="#" className="btn-style-3 text-btn-uppercase">
+                      <a 
+                        href="/cart"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          
+                          // If we have variants and both size and color are selected, use variant-based cart
+                          if (selectedVariant && selectedSize && activeColor && addVariantToCart) {
+                            const sizeAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'size');
+                            const colorAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'color');
+                            
+                            addVariantToCart({
+                              productId: String(product?.id),
+                              productSlug: product?.slug || '',
+                              productTitle: product?.title || '',
+                              productImage: product?.featuredImage || product?.imgSrc || '',
+                              variantSku: selectedVariant.sku,
+                              size: sizeAttr?.value || selectedSize,
+                              color: colorAttr?.value || colorAttr?.displayValue || activeColor,
+                              colorHexCode: colorAttr?.hexCode || '',
+                              price: currentPrice,
+                              originalPrice: originalPrice,
+                              quantity: quantity,
+                              stockQuantity: selectedVariant.stockQuantity || null,
+                            }, false); // Don't open cart modal
+                          } else if (selectedSize && activeColor) {
+                            // Size and color selected but no variant found - show alert
+                            e.preventDefault();
+                            alert('Please select a valid size and color combination');
+                            return;
+                          } else {
+                            // Fallback to regular add to cart
+                            addProductToCart(product?.id, quantity, false); // Don't open cart modal
+                          }
+                          
+                          // Navigate to cart page
+                          router.push('/cart');
+                        }}
+                        className="btn-style-3 text-btn-uppercase"
+                      >
                         Buy it now
                       </a>
                     </div>

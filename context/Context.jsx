@@ -189,11 +189,23 @@ export default function Context({ children }) {
   };
 
   // Legacy function for backward compatibility (deprecated - use addVariantToCart instead)
-  const addProductToCart = (id, qty, isModal = true) => {
-    // This is a fallback for old components that don't use variants
-    // Try to find product and use first variant
-    const product = allProducts.find((elm) => elm.id == id);
-    if (product && product.variants && product.variants.length > 0) {
+  // Now supports both static allProducts and API products
+  const addProductToCart = (id, qty = 1, isModal = true, productObj = null) => {
+    // If product object is provided (from API), use it directly
+    // Otherwise, try to find in allProducts (static data)
+    let product = productObj;
+    
+    if (!product) {
+      product = allProducts.find((elm) => elm.id == id);
+    }
+    
+    if (!product) {
+      console.warn('Product not found for addProductToCart:', id);
+      return;
+    }
+    
+    // Handle products with variants
+    if (product.variants && product.variants.length > 0) {
       const firstVariant = product.variants[0];
       const sizeAttr = firstVariant.attributes?.find(attr => attr.name.toLowerCase() === 'size');
       const colorAttr = firstVariant.attributes?.find(attr => attr.name.toLowerCase() === 'color');
@@ -211,6 +223,22 @@ export default function Context({ children }) {
         originalPrice: firstVariant.originalPrice || product.oldPrice || null,
         quantity: qty || 1,
         stockQuantity: firstVariant.stockQuantity || null,
+      }, isModal);
+    } else {
+      // Handle products without variants (simple products)
+      addVariantToCart({
+        productId: String(product.id || id),
+        productSlug: product.slug || '',
+        productTitle: product.title || '',
+        productImage: product.imgSrc || product.featuredImage || '',
+        variantSku: `${id}_default`,
+        size: '',
+        color: '',
+        colorHexCode: '',
+        price: product.price || 0,
+        originalPrice: product.oldPrice || null,
+        quantity: qty || 1,
+        stockQuantity: product.totalStock || null,
       }, isModal);
     }
   };

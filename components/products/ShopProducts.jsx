@@ -40,6 +40,7 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
     });
     const [categoryId, setCategoryId] = useState(null);
     const priceTimeoutRef = useRef(null);
+    const lastCategorySlugRef = useRef(null);
 
     const {
         price,
@@ -99,55 +100,101 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
         },
     };
 
-    // Fetch category ID from slug
+    // Fetch category ID from slug and products in one optimized flow
     useEffect(() => {
-        const fetchCategoryId = async () => {
-            if (categorySlug) {
-                try {
-                    const categoriesResponse = await getCategories({});
-                    if (categoriesResponse.success && categoriesResponse.data.length > 0) {
-                        const category = categoriesResponse.data.find(
-                            (cat) => cat.slug === categorySlug
-                        );
-                        if (category) {
-                            setCategoryId(category._id || category.id);
-                        } else {
-                            setCategoryId(null);
-                        }
-                    }
-                } catch (err) {
-                    console.error("Error fetching category:", err);
-                    setCategoryId(null);
-                }
-            } else {
-                setCategoryId(null);
-            }
+        // Don't run if categorySlug is not set yet (wait for URL params)
+        if (categorySlug === undefined) return;
 
-            // Reset to page 1 when category changes
-            setPagination((prev) => ({ ...prev, page: 1 }));
-            dispatch({ type: "SET_CURRENT_PAGE", payload: 1 });
-        };
-
-        fetchCategoryId();
-    }, [categorySlug]);
-
-    // Fetch products from API
-    useEffect(() => {
-        const fetchProducts = async () => {
+        const fetchCategoryAndProducts = async () => {
             try {
                 setLoading(true);
                 setError(null);
 
-                // Build API query params
+                let currentCategoryId = null;
+
+                // Step 1: If we have a category slug, fetch category first (only if slug changed)
+                if (categorySlug) {
+                    // Only fetch category if slug changed (prevents unnecessary API calls when filters change)
+                    if (lastCategorySlugRef.current !== categorySlug) {
+                        try {
+                            console.log('🔍 Fetching category for slug:', categorySlug);
+                            const categoriesResponse = await getCategories({ limit: 1000 });
+                            console.log('📋 Categories response:', { 
+                                success: categoriesResponse.success, 
+                                count: categoriesResponse.data?.length 
+                            });
+                            
+                            if (categoriesResponse.success && categoriesResponse.data.length > 0) {
+                                const category = categoriesResponse.data.find(
+                                    (cat) => cat.slug === categorySlug
+                                );
+                                console.log('🔎 Category search result:', { 
+                                    found: !!category, 
+                                    slug: categorySlug,
+                                    allSlugs: categoriesResponse.data.map(c => c.slug).slice(0, 5)
+                                });
+                                
+                                if (category) {
+                                    currentCategoryId = category._id || category.id;
+                                    console.log('✅ Category found:', { 
+                                        slug: categorySlug, 
+                                        id: currentCategoryId, 
+                                        name: category.name 
+                                    });
+                                    setCategoryId(currentCategoryId);
+                                    lastCategorySlugRef.current = categorySlug;
+                                } else {
+                                    console.warn('❌ Category not found:', categorySlug);
+                                    setCategoryId(null);
+                                    lastCategorySlugRef.current = null;
+                                    setError(`Category "${categorySlug}" not found`);
+                                    setProducts([]);
+                                    setLoading(false);
+                                    return;
+                                }
+                            } else {
+                                console.warn('❌ No categories returned');
+                                setCategoryId(null);
+                                lastCategorySlugRef.current = null;
+                                setError("Failed to load categories");
+                                setProducts([]);
+                                setLoading(false);
+                                return;
+                            }
+                        } catch (err) {
+                            console.error("❌ Error fetching category:", err);
+                            setCategoryId(null);
+                            lastCategorySlugRef.current = null;
+                            setError("Failed to load category");
+                            setProducts([]);
+                            setLoading(false);
+                            return;
+                        }
+                    } else {
+                        // Use existing categoryId (slug hasn't changed)
+                        currentCategoryId = categoryId;
+                        console.log('♻️ Using cached categoryId:', currentCategoryId);
+                    }
+                } else {
+                    // If no category slug, clear categoryId
+                    console.log('🧹 No category slug, clearing categoryId');
+                    setCategoryId(null);
+                    lastCategorySlugRef.current = null;
+                }
+
+                // Step 2: Fetch products with category filter (if available)
                 const apiParams = {
                     page: pagination.page,
                     limit: pagination.limit,
                     isActive: true,
                 };
 
-                // Add category filter
-                if (categoryId) {
-                    apiParams.category = categoryId;
+                // Add category filter only if we have categoryId
+                if (currentCategoryId) {
+                    apiParams.category = currentCategoryId;
+                    console.log('📦 Fetching products with category filter:', { categoryId: currentCategoryId });
+                } else {
+                    console.log('📦 Fetching products without category filter');
                 }
 
                 // Add brand filter
@@ -155,10 +202,19 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
                     apiParams.brand = brands.join(",");
                 }
 
-                // Add price filter
-                if (price[0] > 0 || price[1] < 10000) {
-                    apiParams.minPrice = price[0];
-                    apiParams.maxPrice = price[1];
+                // Add price filter only if user has changed from default range [20, 300]
+                // Don't apply price filter if it's the default range to avoid filtering out products
+                const DEFAULT_PRICE_RANGE = [20, 300];
+                const isDefaultPriceRange = price[0] === DEFAULT_PRICE_RANGE[0] && price[1] === DEFAULT_PRICE_RANGE[1];
+                
+                if (!isDefaultPriceRange) {
+                    // Only apply price filter if user has changed it from default
+                    if (price[0] > 0) {
+                        apiParams.minPrice = price[0];
+                    }
+                    if (price[1] < 10000) {
+                        apiParams.maxPrice = price[1];
+                    }
                 }
 
                 // Add sorting
@@ -174,10 +230,18 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
                     apiParams.sort = "-createdAt";
                 }
 
+                console.log('🚀 API params:', apiParams);
+
                 // Use discounted endpoint if sale filter is active, otherwise use search
                 const response = activeFilterOnSale
                     ? await getDiscountedProducts(apiParams)
                     : await searchProducts(apiParams);
+                
+                console.log('📥 Products response:', { 
+                    success: response.success, 
+                    count: response.data?.length,
+                    pagination: response.pagination 
+                });
 
                 if (response.success) {
                     const formattedProducts = formatProductsForDisplay(response.data);
@@ -258,9 +322,10 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
             }
         };
 
-        fetchProducts();
+        fetchCategoryAndProducts();
     }, [
-        categoryId,
+        categorySlug, // Primary dependency - when slug changes, fetch category and products
+        categoryId, // When categoryId is set, fetch products
         price,
         brands,
         activeFilterOnSale,

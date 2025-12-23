@@ -46,6 +46,16 @@
         opacity: 0;
       }
     }
+    // Disable hover effect if no hover image
+    &.no-hover-image {
+      &:hover {
+        .product-img {
+          .img-product {
+            opacity: 1;
+          }
+        }
+      }
+    }
     .on-sale-wrap {
       position: absolute;
       top: 5px;
