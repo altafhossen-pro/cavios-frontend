@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { formatPrice } from "@/config/currency";
 import { getDivisions, getDistrictsByDivision, getUpazilasByDistrict, getDhakaCityAreas } from "@/features/address/api/addressApi";
 import { createOrder } from "@/features/order/api/orderApi";
+import { login } from "@/features/auth/api/authApi";
 
 export default function Checkout() {
   const router = useRouter();
@@ -27,6 +28,17 @@ export default function Checkout() {
   // Validation and loading states
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Login form states
+  const [emailOrPhone, setEmailOrPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordType, setPasswordType] = useState("password");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [loginSuccess, setLoginSuccess] = useState("");
+  
+  // Login required modal state
+  const [showLoginModal, setShowLoginModal] = useState(false);
   
   // Address data states
   const [divisions, setDivisions] = useState([]);
@@ -149,7 +161,8 @@ export default function Checkout() {
     totalPrice,
     deliveryChargeSettings,
     user,
-    clearCart
+    clearCart,
+    setUserAndToken
   } = useContextElement();
 
   // Calculate shipping charge based on location and delivery settings
@@ -242,6 +255,13 @@ export default function Checkout() {
     console.log('Place Order clicked');
     console.log('Form data:', { name, phone, division, district, upazila, dhakaArea, shippingAddress, cartProducts: cartProducts?.length });
     
+    // Check if user is logged in
+    if (!user) {
+      // Show login required modal
+      setShowLoginModal(true);
+      return;
+    }
+    
     // Clear previous submit error
     setErrors({});
     
@@ -321,7 +341,15 @@ export default function Checkout() {
         discount: appliedDiscount,
         shippingCost: shippingCharge,
         orderNotes: notes || '',
-        orderSource: 'website'
+        orderSource: 'website',
+        // Store phone number from checkout form (even if user is logged in)
+        // This allows using the phone number entered in checkout, not just user's saved phone
+        manualOrderInfo: {
+          phone: phone || '',
+          name: name || '',
+          email: user?.email || '',
+          address: shippingAddress || ''
+        }
       };
       
       // Create order
@@ -347,7 +375,107 @@ export default function Checkout() {
     }
   };
 
-  // Handle empty cart
+  // Handle login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+    setLoginSuccess("");
+    
+    if (!emailOrPhone || !password) {
+      setLoginError("Email/Phone and password are required");
+      return;
+    }
+    
+    setLoginLoading(true);
+    const response = await login(emailOrPhone, password);
+    setLoginLoading(false);
+    
+    if (response.success && response.data) {
+      const { user: loggedInUser, token } = response.data;
+      
+      // Set user and token in global state
+      setUserAndToken(loggedInUser, token);
+      
+      // Show success message
+      setLoginSuccess("Login successful!");
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setLoginSuccess("");
+      }, 3000);
+      
+      // Auto-fill user info if available
+      if (loggedInUser) {
+        if (loggedInUser.name && !name) {
+          setName(loggedInUser.name);
+        }
+        if (loggedInUser.phone && !phone) {
+          setPhone(loggedInUser.phone);
+        }
+        if (loggedInUser.email && !emailOrPhone.includes('@')) {
+          // Only set email if emailOrPhone was not an email
+        }
+        // Auto-fill address if user has default address
+        if (loggedInUser.addresses && loggedInUser.addresses.length > 0) {
+          const defaultAddress = loggedInUser.addresses.find(addr => addr.isDefault) || loggedInUser.addresses[0];
+          if (defaultAddress && !shippingAddress) {
+            setShippingAddress(defaultAddress.street || '');
+            if (defaultAddress.division && !division) {
+              setDivision(defaultAddress.division);
+            }
+            if (defaultAddress.district && !district) {
+              setDistrict(defaultAddress.district);
+            }
+            if (defaultAddress.upazila && !upazila) {
+              setUpazila(defaultAddress.upazila);
+            }
+            if (defaultAddress.area && !dhakaArea) {
+              setDhakaArea(defaultAddress.area);
+            }
+          }
+        }
+      }
+      
+      // Clear login form
+      setEmailOrPhone("");
+      setPassword("");
+    } else {
+      setLoginError(response.message || "Invalid credentials");
+    }
+  };
+
+  const togglePassword = () => {
+    setPasswordType((prevType) =>
+      prevType === "password" ? "text" : "password"
+    );
+  };
+
+  // Show login modal using Bootstrap
+  useEffect(() => {
+    if (showLoginModal) {
+      const bootstrap = require("bootstrap");
+      const modalElement = document.getElementById("loginRequiredModal");
+      if (modalElement) {
+        const myModal = new bootstrap.Modal(modalElement, {
+          keyboard: true,
+          backdrop: true
+        });
+        myModal.show();
+        
+        // Clean up when modal is hidden
+        const handleHidden = () => {
+          setShowLoginModal(false);
+        };
+        modalElement.addEventListener("hidden.bs.modal", handleHidden);
+        
+        return () => {
+          modalElement.removeEventListener("hidden.bs.modal", handleHidden);
+        };
+      }
+    }
+  }, [showLoginModal]);
+
+  // Handle empty cart - must be after all hooks
   if (!cartProducts || cartProducts.length === 0) {
     return (
       <section>
@@ -366,12 +494,54 @@ export default function Checkout() {
       </section>
     );
   }
+
   return (
-    <section>
-      <div className="container">
-        <div className="row">
-          <div className="col-xl-6">
-            <div className="flat-spacing tf-page-checkout">
+    <>
+      {/* Login Required Modal */}
+      <div
+        className="modal fade"
+        id="loginRequiredModal"
+        tabIndex={-1}
+        aria-labelledby="loginRequiredModalLabel"
+        aria-hidden="true"
+      >
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title" id="loginRequiredModalLabel">
+                Login Required
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              />
+            </div>
+            <div className="modal-body">
+              <p>You need to login before placing an order.</p>
+              <p className="text-muted small">
+                Please login using the form above or create an account to continue.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="tf-btn btn-fill"
+                data-bs-dismiss="modal"
+              >
+                <span className="text">Close</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section>
+        <div className="container">
+          <div className="row">
+            <div className="col-xl-6">
+              <div className="flat-spacing tf-page-checkout">
               {!user && (
                 <div className="wrap">
                   <div className="title-login">
@@ -382,14 +552,84 @@ export default function Checkout() {
                   </div>
                   <form
                     className="login-box"
-                    onSubmit={(e) => e.preventDefault()}
+                    onSubmit={handleLogin}
                   >
+                    {loginError && (
+                      <div style={{
+                        padding: '12px',
+                        backgroundColor: '#fee',
+                        color: '#c33',
+                        borderRadius: '4px',
+                        marginBottom: '15px',
+                        fontSize: '14px'
+                      }}>
+                        {loginError}
+                      </div>
+                    )}
+                    {loginSuccess && (
+                      <div style={{
+                        padding: '12px',
+                        backgroundColor: '#d4edda',
+                        color: '#155724',
+                        borderRadius: '4px',
+                        marginBottom: '15px',
+                        fontSize: '14px',
+                        border: '1px solid #c3e6cb'
+                      }}>
+                        {loginSuccess}
+                      </div>
+                    )}
                     <div className="grid-2">
-                      <input type="text" placeholder="Your name/Email" />
-                      <input type="password" placeholder="Password" />
+                      <input 
+                        type="text" 
+                        placeholder="Email or Phone Number*" 
+                        value={emailOrPhone}
+                        onChange={(e) => {
+                          setEmailOrPhone(e.target.value);
+                          if (loginError) setLoginError("");
+                        }}
+                        disabled={loginLoading}
+                        required
+                      />
+                      <div style={{ position: 'relative' }}>
+                        <input 
+                          type={passwordType}
+                          placeholder="Password*" 
+                          value={password}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            if (loginError) setLoginError("");
+                          }}
+                          disabled={loginLoading}
+                          required
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: '15px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            cursor: 'pointer',
+                            color: '#666'
+                          }}
+                          onClick={togglePassword}
+                        >
+                          <i
+                            className={`icon-eye-${
+                              passwordType === "text" ? "show" : "hide"
+                            }-line`}
+                          />
+                        </span>
+                      </div>
                     </div>
-                    <button className="tf-btn" type="submit">
-                      <span className="text">Login</span>
+                    <button 
+                      className="tf-btn" 
+                      type="submit"
+                      disabled={loginLoading}
+                    >
+                      <span className="text">
+                        {loginLoading ? "Logging in..." : "Login"}
+                      </span>
                     </button>
                   </form>
                 </div>
@@ -946,6 +1186,7 @@ export default function Checkout() {
           }
         }
       `}</style>
-    </section>
+      </section>
+    </>
   );
 }
