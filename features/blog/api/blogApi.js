@@ -74,3 +74,27 @@ export const getBlogById = async (id) => {
   }
 };
 
+/**
+ * Get all blogs with pagination (public endpoint)
+ * @param {Object} params - Query parameters (page, limit, isActive, sort, search)
+ * @returns {Promise} API response with blogs and pagination
+ */
+export const getAllBlogs = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/blog/public', { params });
+    return {
+      success: response.data.success,
+      data: response.data.data?.blogs || [],
+      pagination: response.data.data?.pagination || null,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error('Error fetching blogs:', error);
+    return {
+      success: false,
+      data: [],
+      pagination: null,
+      message: error.response?.data?.message || error.message || 'Failed to fetch blogs',
+    };
+  }
+};

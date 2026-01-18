@@ -17,9 +17,23 @@ export default function MainNav() {
         setLoading(true);
         const response = await getMainCategories();
         if (response.success && response.data) {
-          // Fetch subcategories for each main category
+          // Check if childCategories are already in the response
+          // If not, fetch subcategories for each main category
           const categoriesWithSubs = await Promise.all(
             response.data.map(async (category) => {
+              // Check if childCategories already exist in the response
+              if (category.childCategories && category.childCategories.length > 0) {
+                // Filter only active child categories
+                const activeChildren = category.childCategories.filter(
+                  (child) => child.isActive !== false
+                );
+                return {
+                  ...category,
+                  children: activeChildren
+                };
+              }
+              
+              // If not, fetch subcategories separately
               try {
                 const subResponse = await getCategories({
                   parent: category._id,
@@ -51,7 +65,7 @@ export default function MainNav() {
   const menuItems = [
     { name: "Home", href: "/" },
     { name: "Shop", href: "/shop", hasMegamenu: true },
-    { name: "Blog", href: "/blog" },
+    { name: "Blog", href: "/blogs" },
     { name: "Contact Us", href: "/contact" },
   ];
 
@@ -79,18 +93,18 @@ export default function MainNav() {
                 {item.name}
               </Link>
               {showShopMenu && (
-                <div className="megamenu shop-megamenu">
-                  <div className="megamenu-content">
-                    {loading ? (
-                      <div className="text-center p-4">Loading categories...</div>
-                    ) : categories.length > 0 ? (
-                      <div className="row">
-                        {categories.map((category) => (
-                          <div key={category._id} className="col-md-3 col-sm-6 mb-4">
-                            <div className="megamenu-category">
+                <div className="sub-menu mega-menu">
+                  <div className="container">
+                    <div className="row">
+                      {loading ? (
+                        <div className="col-12 text-center p-4">Loading categories...</div>
+                      ) : categories.length > 0 ? (
+                        categories.map((category) => (
+                          <div key={category._id} className="col-lg-2">
+                            <div className="mega-menu-item">
                               <Link
                                 href={`/shop?category=${category.slug}`}
-                                className="category-title"
+                                className="menu-heading"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   handleCategoryClick(category.slug);
@@ -99,12 +113,12 @@ export default function MainNav() {
                                 {category.name}
                               </Link>
                               {category.children && category.children.length > 0 && (
-                                <ul className="subcategory-list">
+                                <ul className="menu-list">
                                   {category.children.map((subcategory) => (
-                                    <li key={subcategory._id}>
+                                    <li key={subcategory._id || subcategory.slug} className="menu-item-li">
                                       <Link
                                         href={`/shop?category=${subcategory.slug}`}
-                                        className="subcategory-link"
+                                        className="menu-link-text"
                                         onClick={(e) => {
                                           e.preventDefault();
                                           handleCategoryClick(subcategory.slug);
@@ -118,11 +132,11 @@ export default function MainNav() {
                               )}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center p-4">No categories found</div>
-                    )}
+                        ))
+                      ) : (
+                        <div className="col-12 text-center p-4">No categories found</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -141,62 +155,6 @@ export default function MainNav() {
           </li>
         );
       })}
-      <style jsx>{`
-        .menu-item.has-megamenu {
-          position: relative;
-        }
-        .megamenu {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          background: #fff;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-          border-radius: 8px;
-          padding: 20px;
-          min-width: 800px;
-          z-index: 1000;
-          margin-top: 10px;
-        }
-        .megamenu-content {
-          max-height: 500px;
-          overflow-y: auto;
-        }
-        .megamenu-category {
-          padding: 10px 0;
-        }
-        .category-title {
-          font-weight: 600;
-          font-size: 16px;
-          color: #181818;
-          text-decoration: none;
-          display: block;
-          margin-bottom: 10px;
-          transition: color 0.3s ease;
-        }
-        .category-title:hover {
-          color: var(--primary, #ff6b6b);
-        }
-        .subcategory-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-        .subcategory-list li {
-          margin-bottom: 6px;
-        }
-        .subcategory-link {
-          font-size: 14px;
-          color: #666;
-          text-decoration: none;
-          transition: color 0.3s ease;
-          display: block;
-          padding: 4px 0;
-        }
-        .subcategory-link:hover {
-          color: var(--primary, #ff6b6b);
-          padding-left: 8px;
-        }
-      `}</style>
     </>
   );
 }
