@@ -2778,3 +2778,7 @@
     transform: rotate(360deg);
   }
 }
+
+.tf-slideshow .wrap-slider {
+  height: 510px !important;
+}
