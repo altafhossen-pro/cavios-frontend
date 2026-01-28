@@ -1,7 +1,88 @@
-import React from "react";
+"use client";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getMainCategories, getCategories } from "@/features/category/api/categoryApi";
 
 export default function Categories() {
+  const router = useRouter();
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoading(true);
+        const response = await getMainCategories();
+        if (response.success && response.data) {
+          // Fetch subcategories for each main category
+          const categoriesWithSubs = await Promise.all(
+            response.data.map(async (category) => {
+              // Check if childCategories already exist in the response
+              if (category.childCategories && category.childCategories.length > 0) {
+                // Filter only active child categories
+                const activeChildren = category.childCategories.filter(
+                  (child) => child.isActive !== false
+                );
+                return {
+                  ...category,
+                  children: activeChildren
+                };
+              }
+              
+              // If not, fetch subcategories separately
+              try {
+                const subResponse = await getCategories({
+                  parent: category._id,
+                  isActive: true
+                });
+                return {
+                  ...category,
+                  children: subResponse.success ? (subResponse.data || []) : []
+                };
+              } catch (err) {
+                console.error('Error fetching subcategories:', err);
+                return { ...category, children: [] };
+              }
+            })
+          );
+          setCategories(categoriesWithSubs);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        setCategories([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  const handleCategoryClick = (categorySlug, e) => {
+    e.preventDefault();
+    router.push(`/shop?category=${categorySlug}`);
+    // Close the offcanvas
+    const bootstrap = require("bootstrap");
+    const offcanvasElement = document.getElementById("shopCategories");
+    if (offcanvasElement) {
+      const offcanvasInstance = bootstrap.Offcanvas.getInstance(offcanvasElement);
+      if (offcanvasInstance) {
+        offcanvasInstance.hide();
+      }
+    }
+  };
+
+  // Get default image or placeholder
+  const getCategoryImage = (category) => {
+    if (category.image ) {
+      return category.image;
+    }
+    // Return a placeholder or default image
+    return "/images/avatar/women.jpg"; // Default placeholder
+  };
+
   return (
     <div
       className="offcanvas offcanvas-start canvas-filter canvas-categories"
@@ -18,284 +99,82 @@ export default function Categories() {
           />
         </div>
         <div className="canvas-body">
-          <div className="wd-facet-categories">
-            <div
-              role="dialog"
-              className="facet-title collapsed"
-              data-bs-target="#forWomen"
-              data-bs-toggle="collapse"
-              aria-expanded="true"
-              aria-controls="forWomen"
-            >
-              <Image
-                className="avt"
-                alt="avt"
-                src="/images/avatar/women.jpg"
-                width={48}
-                height={48}
-              />
-              <span className="title">For Women</span>
-              <span className="icon icon-arrow-down" />
+          {loading ? (
+            <div className="text-center p-4">
+              <p>Loading categories...</p>
             </div>
-            <div id="forWomen" className="collapse">
-              <ul className="facet-body">
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/new-in.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      New in
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/promotion.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Promotion
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/clothing.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Clothing
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/shoes.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Shoes
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/bags.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Bags
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/accessories.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Accessories
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/jewelry.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Jewelry
-                    </span>
-                  </a>
-                </li>
-              </ul>
+          ) : categories.length > 0 ? (
+            categories.map((category, index) => (
+              <div key={category._id || index} className="wd-facet-categories">
+                <div
+                  role="dialog"
+                  className="facet-title collapsed"
+                  data-bs-target={`#category-${index}`}
+                  data-bs-toggle="collapse"
+                  aria-expanded="false"
+                  aria-controls={`category-${index}`}
+                >
+                  <Image
+                    className="avt"
+                    alt={category.name}
+                    src={getCategoryImage(category)}
+                    width={48}
+                    height={48}
+                  />
+                  <span className="title">{category.name}</span>
+                  <span className="icon icon-arrow-down" />
+                </div>
+                <div id={`category-${index}`} className="collapse">
+                  <ul className="facet-body">
+                    <li>
+                      <Link
+                        href={`/shop?category=${category.slug}`}
+                        className="item link"
+                        onClick={(e) => handleCategoryClick(category.slug, e)}
+                      >
+                        <Image
+                          className="avt"
+                          alt={category.name}
+                          src={getCategoryImage(category)}
+                          width={48}
+                          height={48}
+                        />
+                        <span className="title-sub text-caption-1 text-secondary">
+                          All {category.name}
+                        </span>
+                      </Link>
+                    </li>
+                    {category.children && category.children.length > 0 && (
+                      category.children.map((subcategory, subIndex) => (
+                        <li key={subcategory._id || subIndex}>
+                          <Link
+                            href={`/shop?category=${subcategory.slug}`}
+                            className="item link"
+                            onClick={(e) => handleCategoryClick(subcategory.slug, e)}
+                          >
+                            <Image
+                              className="avt"
+                              alt={subcategory.name}
+                              src={getCategoryImage(subcategory)}
+                              width={48}
+                              height={48}
+                            />
+                            <span className="title-sub text-caption-1 text-secondary">
+                              {subcategory.name}
+                            </span>
+                          </Link>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center p-4">
+              <p>No categories found</p>
             </div>
-          </div>
-          <div className="wd-facet-categories">
-            <div
-              role="dialog"
-              className="facet-title collapsed"
-              data-bs-target="#forMen"
-              data-bs-toggle="collapse"
-              aria-expanded="true"
-              aria-controls="forMen"
-            >
-              <Image
-                className="avt"
-                alt="avt"
-                src="/images/avatar/men.jpg"
-                width={48}
-                height={48}
-              />
-              <span className="title">For Men</span>
-              <span className="icon icon-arrow-down" />
-            </div>
-            <div id="forMen" className="collapse">
-              <ul className="facet-body">
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/men.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Men
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/men.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Men
-                    </span>
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="wd-facet-categories">
-            <div
-              role="dialog"
-              className="facet-title collapsed"
-              data-bs-target="#forKid"
-              data-bs-toggle="collapse"
-              aria-expanded="true"
-              aria-controls="forKid"
-            >
-              <Image
-                className="avt"
-                alt="avt"
-                src="/images/avatar/kid.jpg"
-                width={48}
-                height={48}
-              />
-              <span className="title">For Kid</span>
-              <span className="icon icon-arrow-down" />
-            </div>
-            <div id="forKid" className="collapse">
-              <ul className="facet-body">
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/kid.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Kid
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/kid.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Kid
-                    </span>
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="wd-facet-categories">
-            <div
-              role="dialog"
-              className="facet-title collapsed"
-              data-bs-target="#accessories"
-              data-bs-toggle="collapse"
-              aria-expanded="true"
-              aria-controls="accessories"
-            >
-              <Image
-                className="avt"
-                alt="avt"
-                src="/images/avatar/accessories.jpg"
-                width={48}
-                height={48}
-              />
-              <span className="title">Accessories</span>
-              <span className="icon icon-arrow-down" />
-            </div>
-            <div id="accessories" className="collapse">
-              <ul className="facet-body">
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/accessories.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Accessories
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="item link">
-                    <Image
-                      className="avt"
-                      alt="avt"
-                      src="/images/avatar/accessories.jpg"
-                      width={48}
-                      height={48}
-                    />
-                    <span className="title-sub text-caption-1 text-secondary">
-                      Accessories
-                    </span>
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

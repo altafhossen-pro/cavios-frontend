@@ -32,8 +32,27 @@ export default function NewDetails({ product }) {
   // Get variants from product
   const variants = product?.variants || [];
 
+  // Check if only one variant exists (single variant product)
+  const isSingleVariant = variants.length === 1;
+
+  // Detect which attributes exist in variants
+  const hasSizeAttribute = useMemo(() => {
+    return variants.some(variant => {
+      if (!variant.attributes) return false;
+      return variant.attributes.some(attr => attr.name.toLowerCase() === 'size' && attr.value);
+    });
+  }, [variants]);
+
+  const hasColorAttribute = useMemo(() => {
+    return variants.some(variant => {
+      if (!variant.attributes) return false;
+      return variant.attributes.some(attr => attr.name.toLowerCase() === 'color' && attr.value);
+    });
+  }, [variants]);
+
   // Get all available sizes from variants
   const getAllSizes = () => {
+    if (!hasSizeAttribute) return [];
     const sizeSet = new Set();
     variants.forEach(variant => {
       if (variant.attributes) {
@@ -46,38 +65,46 @@ export default function NewDetails({ product }) {
     return Array.from(sizeSet);
   };
 
-  // Get colors available for selected size
-  const getColorsForSize = (size) => {
-    if (!size || variants.length === 0) {
-      // If no size selected, return empty array (don't show colors until size is selected)
-      return [];
-    }
-    
+  // Get all available colors (works with or without size)
+  const getAllColors = () => {
+    if (!hasColorAttribute) return [];
     const colorSet = new Map();
     variants.forEach(variant => {
       if (variant.attributes) {
         const sizeAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'size');
         const colorAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'color');
         
-        // If this variant matches the selected size
-        if (sizeAttr && sizeAttr.value === size && colorAttr) {
-          const colorValue = colorAttr.value || colorAttr.displayValue;
-          if (colorValue && !colorSet.has(colorValue)) {
-            // Get variant image for this color
-            let variantImage = product?.imgSrc || product?.featuredImage;
-            if (variant.images && variant.images.length > 0) {
-              const firstImage = variant.images[0];
-              variantImage = typeof firstImage === 'string' ? firstImage : (firstImage.url || variantImage);
+        // If color attribute exists, include it
+        if (colorAttr && (colorAttr.value || colorAttr.displayValue)) {
+          // If size attribute exists, only show colors for selected size
+          // If size attribute doesn't exist, show all colors
+          const shouldInclude = hasSizeAttribute 
+            ? (selectedSize && sizeAttr && sizeAttr.value === selectedSize)
+            : true; // Include all colors if no size attribute
+          
+          if (shouldInclude) {
+            const colorValue = colorAttr.value || colorAttr.displayValue;
+            if (colorValue) {
+              // Use colorValue as key to avoid duplicates
+              const colorKey = colorValue.toLowerCase().trim();
+              if (!colorSet.has(colorKey)) {
+                // Get variant image for this color
+                let variantImage = product?.imgSrc || product?.featuredImage;
+                if (variant.images && variant.images.length > 0) {
+                  const firstImage = variant.images[0];
+                  variantImage = typeof firstImage === 'string' ? firstImage : (firstImage.url || variantImage);
+                }
+                
+                colorSet.set(colorKey, {
+                  value: colorValue,
+                  name: colorValue,
+                  displayValue: colorAttr.displayValue || colorValue,
+                  hexCode: colorAttr.hexCode || null,
+                  bgColor: colorAttr.hexCode || `bg-${colorValue.toLowerCase().replace(/\s+/g, '-')}`,
+                  imgSrc: variantImage,
+                });
+              }
             }
-            
-            colorSet.set(colorValue, {
-              value: colorValue,
-              name: colorValue,
-              displayValue: colorAttr.displayValue || colorValue,
-              hexCode: colorAttr.hexCode || null,
-              bgColor: colorAttr.hexCode || `bg-${colorValue.toLowerCase().replace(/\s+/g, '-')}`,
-              imgSrc: variantImage,
-            });
           }
         }
       }
@@ -86,27 +113,62 @@ export default function NewDetails({ product }) {
     return Array.from(colorSet.values());
   };
 
+  // Get colors available for selected size (or all colors if size is optional)
+  const getColorsForSize = (size) => {
+    if (variants.length === 0) return [];
+    
+    // If size attribute doesn't exist, return all colors
+    if (!hasSizeAttribute) {
+      return getAllColors();
+    }
+    
+    // If size is required but not selected, return empty
+    if (!size) {
+      return [];
+    }
+    
+    return getAllColors();
+  };
+
   const productSizes = getAllSizes();
 
   // Memoize productColors to prevent unnecessary recalculations
   // Only recalculate when selectedSize or variants actually change
   const productColors = useMemo(() => {
     return getColorsForSize(selectedSize);
-  }, [selectedSize, variants.length, product?.id]);
+  }, [selectedSize, variants.length, product?.id, hasSizeAttribute, hasColorAttribute]);
 
-  // Set default size from first variant
+  // Auto-select single variant if only one exists
   useEffect(() => {
-    if (variants.length > 0 && !selectedSize) {
-      const firstVariant = variants[0];
-      if (firstVariant.attributes) {
-        const firstSizeAttr = firstVariant.attributes.find(attr => attr.name.toLowerCase() === 'size');
+    if (isSingleVariant && variants.length === 1) {
+      const singleVariant = variants[0];
+      // Auto-select the single variant's attributes
+      if (singleVariant.attributes) {
+        const sizeAttr = singleVariant.attributes.find(attr => attr.name.toLowerCase() === 'size');
+        const colorAttr = singleVariant.attributes.find(attr => attr.name.toLowerCase() === 'color');
         
-        if (firstSizeAttr && firstSizeAttr.value) {
-          setSelectedSize(firstSizeAttr.value);
+        if (sizeAttr && sizeAttr.value && hasSizeAttribute && !selectedSize) {
+          setSelectedSize(sizeAttr.value);
+        }
+        if (colorAttr && (colorAttr.value || colorAttr.displayValue) && hasColorAttribute && !activeColor) {
+          const colorValue = (colorAttr.value || colorAttr.displayValue || '').toLowerCase().trim().replace(/\s+/g, '-');
+          setActiveColor(colorValue);
         }
       }
     }
-  }, [variants]);
+  }, [isSingleVariant, variants, hasSizeAttribute, hasColorAttribute]);
+
+  // Set default size from first variant (only if size attribute exists and not single variant)
+  // Single variant size is handled in the auto-select effect above
+  useEffect(() => {
+    if (!isSingleVariant && hasSizeAttribute && variants.length > 0 && !selectedSize) {
+      // Get all unique sizes and select the first one
+      const firstSize = productSizes[0];
+      if (firstSize) {
+        setSelectedSize(firstSize);
+      }
+    }
+  }, [variants, isSingleVariant, hasSizeAttribute, productSizes]);
 
   // Use ref to track if we're in the middle of a size change
   const isSizeChangingRef = useRef(false);
@@ -118,8 +180,12 @@ export default function NewDetails({ product }) {
   // Track if size was manually changed (not auto selected on initial load)
   const isSizeManuallyChangedRef = useRef(false);
 
-  // Reset color when size changes (only if current color is not available for new size)
+  // Reset color when size changes (only if size attribute exists and current color is not available for new size)
   useEffect(() => {
+    // Skip if no size attribute or single variant
+    if (!hasSizeAttribute || isSingleVariant) return;
+    
+    // If size is required but not selected, return
     if (!selectedSize) return;
     
     isSizeChangingRef.current = true;
@@ -162,7 +228,7 @@ export default function NewDetails({ product }) {
       isSizeChangingRef.current = false;
       isSizeManuallyChangedRef.current = false;
     }, 100);
-  }, [selectedSize, variants.length, product?.id]);
+  }, [selectedSize, variants.length, product?.id, hasSizeAttribute, isSingleVariant]);
 
   // Initialize active color only on initial load
   const hasInitializedColorRef = useRef(false);
@@ -170,6 +236,12 @@ export default function NewDetails({ product }) {
   const previousProductIdRef = useRef(null);
   
   useEffect(() => {
+    // Skip if single variant (already handled)
+    if (isSingleVariant) return;
+    
+    // Skip if no color attribute
+    if (!hasColorAttribute) return;
+    
     // Reset initialization if product changed
     if (product?.id !== previousProductIdRef.current) {
       hasInitializedColorRef.current = false;
@@ -177,7 +249,12 @@ export default function NewDetails({ product }) {
       previousProductColorsRef.current = [];
       isInitialLoadRef.current = true;
       isManualSelectionRef.current = false;
+      setActiveColor(''); // Reset color when product changes
     }
+    
+    // If size is required, wait for size to be selected
+    // But if only color exists (no size), proceed immediately
+    if (hasSizeAttribute && !selectedSize) return;
     
     // Check if productColors actually changed (by comparing length and first color)
     const colorsChanged = 
@@ -194,7 +271,7 @@ export default function NewDetails({ product }) {
     if (productColors.length > 0 && !activeColor && (!hasInitializedColorRef.current || !isSizeChangingRef.current) && colorsChanged) {
       const firstColor = productColors[0];
       const colorValue = (firstColor.value || firstColor.name || firstColor.bgColor || 'default')
-        .toLowerCase().replace(/\s+/g, '-');
+        .toLowerCase().trim().replace(/\s+/g, '-');
       // Mark as auto selection (not manual)
       isManualSelectionRef.current = false;
       setActiveColor(colorValue);
@@ -210,27 +287,53 @@ export default function NewDetails({ product }) {
     
     // Update previous colors reference
     previousProductColorsRef.current = productColors;
-  }, [productColors, activeColor, product?.id]);
+  }, [productColors, activeColor, product?.id, hasSizeAttribute, hasColorAttribute, selectedSize, isSingleVariant]);
 
-  // Get selected variant based on size and color
+  // Get selected variant based on size and color (handles optional attributes)
   const getSelectedVariant = () => {
-    if (!selectedSize || !activeColor || variants.length === 0) {
-      return null;
+    if (variants.length === 0) return null;
+    
+    // If single variant, return it directly
+    if (isSingleVariant) {
+      return variants[0];
     }
     
+    // Find variant matching selected attributes
     return variants.find(variant => {
       if (!variant.attributes) return false;
       
       const sizeAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'size');
       const colorAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'color');
       
-      if (!sizeAttr || !colorAttr) return false;
+      // Match logic:
+      // - If size attribute exists in variants, selectedSize must match
+      // - If color attribute exists in variants, activeColor must match
+      // - If an attribute doesn't exist in variants, don't check it
       
-      const variantSize = sizeAttr.value;
-      const variantColor = (colorAttr.value || colorAttr.displayValue || '').toLowerCase().replace(/\s+/g, '-');
-      const selectedColorValue = activeColor.toLowerCase().replace(/\s+/g, '-');
+      let sizeMatches = true;
+      let colorMatches = true;
       
-      return variantSize === selectedSize && variantColor === selectedColorValue;
+      // Check size match only if size attribute exists in variants
+      if (hasSizeAttribute) {
+        // If size is required but not selected, no match
+        if (!selectedSize) return false;
+        // Variant must have size attribute and it must match
+        if (!sizeAttr || !sizeAttr.value) return false;
+        sizeMatches = sizeAttr.value === selectedSize;
+      }
+      
+      // Check color match only if color attribute exists in variants
+      if (hasColorAttribute) {
+        // If color is required but not selected, no match
+        if (!activeColor) return false;
+        // Variant must have color attribute and it must match
+        if (!colorAttr || (!colorAttr.value && !colorAttr.displayValue)) return false;
+        const variantColor = (colorAttr.value || colorAttr.displayValue || '').toLowerCase().trim().replace(/\s+/g, '-');
+        const selectedColorValue = activeColor.toLowerCase().trim().replace(/\s+/g, '-');
+        colorMatches = variantColor === selectedColorValue;
+      }
+      
+      return sizeMatches && colorMatches;
     });
   };
 
@@ -238,11 +341,11 @@ export default function NewDetails({ product }) {
   
   // Memoize whether current variant is in cart to ensure reactivity
   const isCurrentVariantInCart = useMemo(() => {
-    if (selectedVariant && selectedSize && activeColor && isVariantAddedToCart) {
+    if (selectedVariant && isVariantAddedToCart) {
       return isVariantAddedToCart(product?.id, selectedVariant.sku);
     }
     return false;
-  }, [selectedVariant?.sku, selectedSize, activeColor, product?.id, isVariantAddedToCart, cartProducts]);
+  }, [selectedVariant?.sku, product?.id, isVariantAddedToCart, cartProducts]);
 
   // Get price from selected variant, or use product price
   const getVariantPrice = () => {
@@ -468,7 +571,8 @@ export default function NewDetails({ product }) {
                     </div>
                   </div>
                   <div className="tf-product-info-choose-option">
-                    {productSizes.length > 0 && (
+                    {/* Show size selector if size attribute exists (even if single variant, if it has size) */}
+                    {hasSizeAttribute && productSizes.length > 0 && (
                       <SizeSelect2 
                         productSizes={productSizes}
                         selectedSize={selectedSize}
@@ -483,7 +587,8 @@ export default function NewDetails({ product }) {
                         }}
                       />
                     )}
-                    {productColors.length > 0 && (
+                    {/* Show color selector if color attribute exists (even if single variant, if it has color) */}
+                    {hasColorAttribute && productColors.length > 0 && (
                       <ColorSelect2
                         activeColor={activeColor}
                         setActiveColor={(color) => {
@@ -550,8 +655,8 @@ export default function NewDetails({ product }) {
                         <a
                           onClick={(e) => {
                             e.preventDefault();
-                            // If we have variants and both size and color are selected, use variant-based cart
-                            if (selectedVariant && selectedSize && activeColor && addVariantToCart) {
+                            // If we have a selected variant, use variant-based cart
+                            if (selectedVariant && addVariantToCart) {
                               const sizeAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'size');
                               const colorAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'color');
                               
@@ -561,19 +666,26 @@ export default function NewDetails({ product }) {
                                 productTitle: product?.title || '',
                                 productImage: product?.featuredImage || product?.imgSrc || '',
                                 variantSku: selectedVariant.sku,
-                                size: sizeAttr?.value || selectedSize,
-                                color: colorAttr?.value || colorAttr?.displayValue || activeColor,
+                                size: sizeAttr?.value || selectedSize || '',
+                                color: colorAttr?.value || colorAttr?.displayValue || activeColor || '',
                                 colorHexCode: colorAttr?.hexCode || '',
                                 price: currentPrice,
                                 originalPrice: originalPrice,
                                 quantity: quantity,
                                 stockQuantity: selectedVariant.stockQuantity || null,
                               }, true);
-                            } else if (selectedSize && activeColor) {
-                              // Size and color selected but no variant found - show alert
-                              alert('Please select a valid size and color combination');
-                            } else {
-                              // Fallback to regular add to cart
+                            } else if (variants.length > 0 && !selectedVariant) {
+                              // Variants exist but none selected - show alert
+                              if (hasSizeAttribute && !selectedSize) {
+                                alert('Please select a size');
+                              } else if (hasColorAttribute && !activeColor) {
+                                alert('Please select a color');
+                              } else {
+                                alert('Please select a valid variant');
+                              }
+                              return;
+                            } else if (variants.length === 0) {
+                              // Fallback to regular add to cart (no variants)
                               addProductToCart(product?.id, quantity);
                             }
                           }}
@@ -636,8 +748,8 @@ export default function NewDetails({ product }) {
                         onClick={(e) => {
                           e.preventDefault();
                           
-                          // If we have variants and both size and color are selected, use variant-based cart
-                          if (selectedVariant && selectedSize && activeColor && addVariantToCart) {
+                          // If we have a selected variant, use variant-based cart
+                          if (selectedVariant && addVariantToCart) {
                             const sizeAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'size');
                             const colorAttr = selectedVariant.attributes?.find(attr => attr.name.toLowerCase() === 'color');
                             
@@ -647,21 +759,26 @@ export default function NewDetails({ product }) {
                               productTitle: product?.title || '',
                               productImage: product?.featuredImage || product?.imgSrc || '',
                               variantSku: selectedVariant.sku,
-                              size: sizeAttr?.value || selectedSize,
-                              color: colorAttr?.value || colorAttr?.displayValue || activeColor,
+                              size: sizeAttr?.value || selectedSize || '',
+                              color: colorAttr?.value || colorAttr?.displayValue || activeColor || '',
                               colorHexCode: colorAttr?.hexCode || '',
                               price: currentPrice,
                               originalPrice: originalPrice,
                               quantity: quantity,
                               stockQuantity: selectedVariant.stockQuantity || null,
                             }, false); // Don't open cart modal
-                          } else if (selectedSize && activeColor) {
-                            // Size and color selected but no variant found - show alert
-                            e.preventDefault();
-                            alert('Please select a valid size and color combination');
+                          } else if (variants.length > 0 && !selectedVariant) {
+                            // Variants exist but none selected - show alert
+                            if (hasSizeAttribute && !selectedSize) {
+                              alert('Please select a size');
+                            } else if (hasColorAttribute && !activeColor) {
+                              alert('Please select a color');
+                            } else {
+                              alert('Please select a valid variant');
+                            }
                             return;
-                          } else {
-                            // Fallback to regular add to cart
+                          } else if (variants.length === 0) {
+                            // Fallback to regular add to cart (no variants)
                             addProductToCart(product?.id, quantity, false); // Don't open cart modal
                           }
                           

@@ -1,6 +1,28 @@
 import apiClient from '@/lib/api/config';
 
 /**
+ * Get all active static pages
+ * @returns {Promise} API response with pages array
+ */
+export const getActiveStaticPages = async () => {
+  try {
+    const response = await apiClient.get(`/static-page/active`);
+    return {
+      success: response.data.success,
+      data: response.data.data?.pages || [],
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error('Error fetching active static pages:', error);
+    return {
+      success: false,
+      data: [],
+      message: error.response?.data?.message || error.message || 'Failed to fetch pages',
+    };
+  }
+};
+
+/**
  * Get static page by slug
  * @param {string} slug - Page slug
  * @returns {Promise} API response with page
