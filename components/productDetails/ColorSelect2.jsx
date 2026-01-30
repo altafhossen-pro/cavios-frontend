@@ -78,6 +78,20 @@ export default function ColorSelect2({
     return null;
   }
 
+  // Find the display value for the active color
+  const getActiveColorDisplayValue = () => {
+    const currentActiveColor = activeColor || activeColorDefault;
+    if (currentActiveColor) {
+      // Find matching color option by normalized color key
+      const matchedColor = colorOptions.find(opt => opt.color === currentActiveColor);
+      if (matchedColor) {
+        return matchedColor.value; // Return the display value (e.g., "Red")
+      }
+    }
+    // Fallback to first color option's display value
+    return colorOptions[0]?.value || '';
+  };
+
   return (
     <div className="variant-picker-item">
       <div className="variant-picker-label mb_12">
@@ -86,7 +100,7 @@ export default function ColorSelect2({
           className="text-title variant-picker-label-value value-currentColor"
           style={{ textTransform: "capitalize" }}
         >
-          {activeColor || activeColorDefault || colorOptions[0]?.value}
+          {getActiveColorDisplayValue()}
         </span>
       </div>
       <div className="variant-picker-values">
