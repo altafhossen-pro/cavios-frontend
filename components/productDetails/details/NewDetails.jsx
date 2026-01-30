@@ -10,6 +10,51 @@ import { useContextElement } from "@/context/Context";
 import ProductStikyBottom from "../ProductStikyBottom";
 import { CURRENCY_SYMBOL, formatPrice } from "@/config/currency";
 
+// Simple toast notification function
+const showToast = (message, type = 'error') => {
+  // Create toast element
+  const toast = document.createElement('div');
+  toast.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : 'info'} border-0`;
+  toast.setAttribute('role', 'alert');
+  toast.setAttribute('aria-live', 'assertive');
+  toast.setAttribute('aria-atomic', 'true');
+  toast.style.position = 'fixed';
+  toast.style.top = '20px';
+  toast.style.right = '20px';
+  toast.style.zIndex = '9999';
+  toast.style.minWidth = '300px';
+  
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${message}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Initialize Bootstrap toast
+  if (typeof window !== 'undefined' && window.bootstrap) {
+    const bsToast = new window.bootstrap.Toast(toast, { delay: 3000 });
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', () => {
+      document.body.removeChild(toast);
+    });
+  } else {
+    // Fallback if Bootstrap is not loaded
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s';
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 3000);
+  }
+};
+
 export default function NewDetails({ product }) {
   const [activeColor, setActiveColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
@@ -305,33 +350,31 @@ export default function NewDetails({ product }) {
       const sizeAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'size');
       const colorAttr = variant.attributes.find(attr => attr.name.toLowerCase() === 'color');
       
-      // Match logic:
-      // - If size attribute exists in variants, selectedSize must match
-      // - If color attribute exists in variants, activeColor must match
-      // - If an attribute doesn't exist in variants, don't check it
+      // Match logic: Check each variant individually
+      // - If variant has size attribute, selectedSize must match
+      // - If variant has color attribute, activeColor must match
+      // - If variant doesn't have an attribute, don't check it
       
       let sizeMatches = true;
       let colorMatches = true;
       
-      // Check size match only if size attribute exists in variants
-      if (hasSizeAttribute) {
-        // If size is required but not selected, no match
+      // Check if THIS variant has size attribute
+      if (sizeAttr && sizeAttr.value) {
+        // This variant has size, so selectedSize must match
         if (!selectedSize) return false;
-        // Variant must have size attribute and it must match
-        if (!sizeAttr || !sizeAttr.value) return false;
         sizeMatches = sizeAttr.value === selectedSize;
       }
+      // If this variant doesn't have size, don't check it (sizeMatches stays true)
       
-      // Check color match only if color attribute exists in variants
-      if (hasColorAttribute) {
-        // If color is required but not selected, no match
+      // Check if THIS variant has color attribute
+      if (colorAttr && (colorAttr.value || colorAttr.displayValue)) {
+        // This variant has color, so activeColor must match
         if (!activeColor) return false;
-        // Variant must have color attribute and it must match
-        if (!colorAttr || (!colorAttr.value && !colorAttr.displayValue)) return false;
         const variantColor = (colorAttr.value || colorAttr.displayValue || '').toLowerCase().trim().replace(/\s+/g, '-');
         const selectedColorValue = activeColor.toLowerCase().trim().replace(/\s+/g, '-');
         colorMatches = variantColor === selectedColorValue;
       }
+      // If this variant doesn't have color, don't check it (colorMatches stays true)
       
       return sizeMatches && colorMatches;
     });
@@ -768,13 +811,31 @@ export default function NewDetails({ product }) {
                               stockQuantity: selectedVariant.stockQuantity || null,
                             }, false); // Don't open cart modal
                           } else if (variants.length > 0 && !selectedVariant) {
-                            // Variants exist but none selected - show alert
-                            if (hasSizeAttribute && !selectedSize) {
-                              alert('Please select a size');
+                            // Variants exist but none selected - show toast
+                            // Check what's missing based on variant requirements
+                            const variantWithBoth = variants.find(v => {
+                              const hasSize = v.attributes?.some(attr => attr.name.toLowerCase() === 'size');
+                              const hasColor = v.attributes?.some(attr => attr.name.toLowerCase() === 'color');
+                              return hasSize && hasColor;
+                            });
+                            
+                            if (variantWithBoth) {
+                              // Some variants have both attributes, need both
+                              if (!selectedSize && !activeColor) {
+                                showToast('Please select size and color', 'error');
+                              } else if (!selectedSize) {
+                                showToast('Please select a size', 'error');
+                              } else if (!activeColor) {
+                                showToast('Please select a color', 'error');
+                              } else {
+                                showToast('Please select a valid variant combination', 'error');
+                              }
+                            } else if (hasSizeAttribute && !selectedSize) {
+                              showToast('Please select a size', 'error');
                             } else if (hasColorAttribute && !activeColor) {
-                              alert('Please select a color');
+                              showToast('Please select a color', 'error');
                             } else {
-                              alert('Please select a valid variant');
+                              showToast('Please select a valid variant', 'error');
                             }
                             return;
                           } else if (variants.length === 0) {

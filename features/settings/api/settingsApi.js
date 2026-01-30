@@ -28,3 +28,25 @@ export const getDeliveryChargeSettings = async () => {
   }
 };
 
+/**
+ * Update delivery charge settings
+ * @param {Object} settingsData - Delivery charge settings data
+ * @returns {Promise} API response with updated delivery charge settings
+ */
+export const updateDeliveryChargeSettings = async (settingsData) => {
+  try {
+    const response = await apiClient.put('/settings/delivery-charge', settingsData);
+    return {
+      success: response.data.success,
+      data: response.data.data || null,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error('Error updating delivery charge settings:', error);
+    return {
+      success: false,
+      data: null,
+      message: error.response?.data?.message || error.message || 'Failed to update delivery charge settings',
+    };
+  }
+};

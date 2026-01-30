@@ -33,6 +33,7 @@ export default async function ProductDetailPage({ params }) {
 
     // Format product data for display
     const product = formatProductForDisplay(productResponse.data);
+    
 
     // Fetch related products (from same category)
     let relatedProducts = [];

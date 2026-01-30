@@ -29,7 +29,7 @@ export default async function ProductPage({ params }) {
     }
 
     const product = formatProductForDisplay(productResponse.data);
-
+    // console.log(JSON.stringify(product, null, 2))
     // Fetch related products (from same category)
     let relatedProducts = [];
     try {
