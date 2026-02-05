@@ -1,3 +1,7 @@
+/* OLD FOOTER - COMMENTED OUT - USING FooterNew.jsx INSTEAD */
+import FooterNew from "./FooterNew";
+export default FooterNew;
+/*
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
@@ -300,3 +304,4 @@ export default function Footer({
     </>
   );
 }
+*/

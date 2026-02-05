@@ -6,6 +6,7 @@ import { getMainCategories, getCategories } from "@/features/category/api/catego
 import { searchProducts } from "@/features/product/api/productApi";
 import { formatProductsForDisplay } from "@/features/product/utils/formatProduct";
 import { getActiveStaticPages } from "@/features/staticPage/api/staticPageApi";
+import { getHeaderMenuConfig } from "@/features/headerMenu/api/headerMenuApi";
 import ProductCard1 from "../productCards/ProductCard1";
 
 export default function MobileMenu() {
@@ -15,11 +16,43 @@ export default function MobileMenu() {
   const [loading, setLoading] = useState(true);
   const [staticPages, setStaticPages] = useState([]);
   const [loadingStaticPages, setLoadingStaticPages] = useState(true);
+  const [menuItems, setMenuItems] = useState([]);
+  const [showShopMenuEnabled, setShowShopMenuEnabled] = useState(false);
+  const [shopMenuCategories, setShopMenuCategories] = useState([]);
+  const [menuLoading, setMenuLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const debounceTimer = useRef(null);
+
+  useEffect(() => {
+    const fetchMenuConfig = async () => {
+      try {
+        setMenuLoading(true);
+        const response = await getHeaderMenuConfig();
+        
+        if (response.success && response.data) {
+          const sortedMenuItems = (response.data.menuItems || []).sort((a, b) => (a.order || 0) - (b.order || 0));
+          setMenuItems(sortedMenuItems);
+          setShowShopMenuEnabled(response.data.showShopMenu !== false);
+          
+          if (response.data.showShopMenu !== false) {
+            const categoriesResponse = await getMainCategories();
+            if (categoriesResponse.success && categoriesResponse.data) {
+              setShopMenuCategories(categoriesResponse.data);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching menu config:', error);
+      } finally {
+        setMenuLoading(false);
+      }
+    };
+
+    fetchMenuConfig();
+  }, []);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -228,169 +261,242 @@ export default function MobileMenu() {
               </div>
             )}
             <ul className="nav-ul-mb" id="wrapper-menu-navigation">
-              <li className="nav-mb-item">
-                <Link
-                  href="/"
-                  className={`mb-menu-link ${pathname === "/" ? "active" : ""}`}
-                >
-                  <span>Home</span>
-                </Link>
-              </li>
-              <li className="nav-mb-item">
-                <a
-                  href="#dropdown-menu-two"
-                  className={`collapsed mb-menu-link ${
-                    pathname.startsWith("/shop") ? "active" : ""
-                  }`}
-                  data-bs-toggle="collapse"
-                  aria-expanded="true"
-                  aria-controls="dropdown-menu-two"
-                >
-                  <span>Shop</span>
-                  <span className="btn-open-sub" />
-                </a>
-                <div id="dropdown-menu-two" className="collapse">
-                  <ul className="sub-nav-menu">
-                    {loading ? (
-                      <li>
-                        <span className="sub-nav-link">Loading categories...</span>
-                      </li>
-                    ) : categories.length > 0 ? (
-                      categories.map((category, categoryIndex) => (
-                        <li key={category._id || categoryIndex}>
-                          {category.children && category.children.length > 0 ? (
-                            <>
-                              <a
-                                href={`#sub-shop-category-${categoryIndex}`}
-                                className={`sub-nav-link collapsed ${
-                                  pathname.includes(category.slug) ? "active" : ""
-                                }`}
-                                data-bs-toggle="collapse"
-                                aria-expanded="false"
-                                aria-controls={`sub-shop-category-${categoryIndex}`}
-                              >
-                                <span>{category.name}</span>
-                                <span className="btn-open-sub" />
-                              </a>
-                              <div
-                                id={`sub-shop-category-${categoryIndex}`}
-                                className="collapse"
-                              >
-                                <ul className="sub-nav-menu sub-menu-level-2">
-                                  <li>
-                                    <Link
-                                      href={`/shop?category=${category.slug}`}
-                                      className={`sub-nav-link ${
-                                        pathname.includes(category.slug) &&
-                                        !category.children.some((child) =>
-                                          pathname.includes(child.slug)
-                                        )
-                                          ? "active"
-                                          : ""
+              {menuLoading ? (
+                <li className="nav-mb-item">
+                  <span className="mb-menu-link">Loading menu...</span>
+                </li>
+              ) : (
+                <>
+                  {/* Shop Menu (if enabled) - Only show if shop menu is enabled from API */}
+                  {showShopMenuEnabled === true && shopMenuCategories.length > 0 && (
+                    <li className="nav-mb-item">
+                      <a
+                        href="#dropdown-menu-shop"
+                        className={`collapsed mb-menu-link ${
+                          pathname.startsWith("/shop") ? "active" : ""
+                        }`}
+                        data-bs-toggle="collapse"
+                        aria-expanded="false"
+                        aria-controls="dropdown-menu-shop"
+                      >
+                        <span>Shop</span>
+                        <span className="btn-open-sub" />
+                      </a>
+                      <div id="dropdown-menu-shop" className="collapse">
+                        <ul className="sub-nav-menu">
+                          {loading ? (
+                            <li>
+                              <span className="sub-nav-link">Loading categories...</span>
+                            </li>
+                          ) : shopMenuCategories.length > 0 ? (
+                            shopMenuCategories.map((category, categoryIndex) => (
+                              <li key={category._id || categoryIndex}>
+                                {category.childCategories && category.childCategories.length > 0 ? (
+                                  <>
+                                    <a
+                                      href={`#sub-shop-category-${categoryIndex}`}
+                                      className={`sub-nav-link collapsed ${
+                                        pathname.includes(category.slug) ? "active" : ""
                                       }`}
+                                      data-bs-toggle="collapse"
+                                      aria-expanded="false"
+                                      aria-controls={`sub-shop-category-${categoryIndex}`}
+                                    >
+                                      <span>{category.name}</span>
+                                      <span className="btn-open-sub" />
+                                    </a>
+                                    <div
+                                      id={`sub-shop-category-${categoryIndex}`}
+                                      className="collapse"
+                                    >
+                                      <ul className="sub-nav-menu sub-menu-level-2">
+                                        <li>
+                                          <Link
+                                            href={`/shop?category=${category.slug}`}
+                                            className={`sub-nav-link ${
+                                              pathname.includes(category.slug) &&
+                                              !category.childCategories.some((child) =>
+                                                pathname.includes(child.slug)
+                                              )
+                                                ? "active"
+                                                : ""
+                                            }`}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              handleCategoryClick(category.slug);
+                                            }}
+                                          >
+                                            All {category.name}
+                                          </Link>
+                                        </li>
+                                        {category.childCategories.map((subcategory, subIndex) => (
+                                          <li key={subcategory._id || subIndex}>
+                                            <Link
+                                              href={`/shop?category=${subcategory.slug}`}
+                                              className={`sub-nav-link ${
+                                                pathname.includes(subcategory.slug)
+                                                  ? "active"
+                                                  : ""
+                                              }`}
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                handleCategoryClick(subcategory.slug);
+                                              }}
+                                            >
+                                              {subcategory.name}
+                                            </Link>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <Link
+                                    href={`/shop?category=${category.slug}`}
+                                    className={`sub-nav-link ${
+                                      pathname.includes(category.slug) ? "active" : ""
+                                    }`}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      handleCategoryClick(category.slug);
+                                    }}
+                                  >
+                                    {category.name}
+                                  </Link>
+                                )}
+                              </li>
+                            ))
+                          ) : (
+                            <li>
+                              <span className="sub-nav-link">No categories found</span>
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    </li>
+                  )}
+
+                  {/* Dynamic Menu Items */}
+                  {menuItems.map((item, index) => {
+                    const isActive = pathname === item.href || 
+                      (item.href !== "/" && pathname.startsWith(item.href));
+                    
+                    // Skip Shop item if shop menu is enabled (already rendered above) OR if shop menu is disabled
+                    if (item.name === "Shop") {
+                      return null;
+                    }
+
+                    // Handle category menu items with subcategories
+                    if (item.type === 'category' && item.children && item.children.length > 0) {
+                      return (
+                        <li key={`category-${item.categoryId || index}`} className="nav-mb-item">
+                          <a
+                            href={`#dropdown-menu-category-${index}`}
+                            className={`collapsed mb-menu-link ${isActive ? "active" : ""}`}
+                            data-bs-toggle="collapse"
+                            aria-expanded="false"
+                            aria-controls={`dropdown-menu-category-${index}`}
+                          >
+                            <span>{item.name}</span>
+                            <span className="btn-open-sub" />
+                          </a>
+                          <div id={`dropdown-menu-category-${index}`} className="collapse">
+                            <ul className="sub-nav-menu">
+                              {item.children.map((subcategory, subIndex) => (
+                                <li key={subcategory._id || subIndex}>
+                                  {subcategory.children && subcategory.children.length > 0 ? (
+                                    <>
+                                      <a
+                                        href={`#sub-category-${index}-${subIndex}`}
+                                        className={`sub-nav-link collapsed`}
+                                        data-bs-toggle="collapse"
+                                        aria-expanded="false"
+                                        aria-controls={`sub-category-${index}-${subIndex}`}
+                                      >
+                                        <span>{subcategory.name}</span>
+                                        <span className="btn-open-sub" />
+                                      </a>
+                                      <div
+                                        id={`sub-category-${index}-${subIndex}`}
+                                        className="collapse"
+                                      >
+                                        <ul className="sub-nav-menu sub-menu-level-2">
+                                          {subcategory.children.map((grandchild, grandIndex) => (
+                                            <li key={grandchild._id || grandIndex}>
+                                              <Link
+                                                href={`/shop?category=${grandchild.slug}`}
+                                                className="sub-nav-link"
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  handleCategoryClick(grandchild.slug);
+                                                }}
+                                              >
+                                                {grandchild.name}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <Link
+                                      href={`/shop?category=${subcategory.slug}`}
+                                      className="sub-nav-link"
                                       onClick={(e) => {
                                         e.preventDefault();
-                                        handleCategoryClick(category.slug);
+                                        handleCategoryClick(subcategory.slug);
                                       }}
                                     >
-                                      All {category.name}
+                                      {subcategory.name}
                                     </Link>
-                                  </li>
-                                  {category.children.map((subcategory, subIndex) => (
-                                    <li key={subcategory._id || subIndex}>
-                                      <Link
-                                        href={`/shop?category=${subcategory.slug}`}
-                                        className={`sub-nav-link ${
-                                          pathname.includes(subcategory.slug)
-                                            ? "active"
-                                            : ""
-                                        }`}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          handleCategoryClick(subcategory.slug);
-                                        }}
-                                      >
-                                        {subcategory.name}
-                                      </Link>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </li>
+                      );
+                    }
+
+                    // Handle manual menu items
+                    if (item.type === 'manual') {
+                      return (
+                        <li key={`manual-${index}`} className="nav-mb-item">
+                          {item.target === '_blank' ? (
+                            <a
+                              href={item.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`mb-menu-link ${isActive ? "active" : ""}`}
+                            >
+                              <span>{item.name}</span>
+                            </a>
                           ) : (
                             <Link
-                              href={`/shop?category=${category.slug}`}
-                              className={`sub-nav-link ${
-                                pathname.includes(category.slug) ? "active" : ""
-                              }`}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                handleCategoryClick(category.slug);
-                              }}
+                              href={item.href}
+                              className={`mb-menu-link ${isActive ? "active" : ""}`}
                             >
-                              {category.name}
+                              <span>{item.name}</span>
                             </Link>
                           )}
                         </li>
-                      ))
-                    ) : (
-                      <li>
-                        <span className="sub-nav-link">No categories found</span>
+                      );
+                    }
+
+                    // Handle static menu items
+                    return (
+                      <li key={`${item.type}-${index}`} className="nav-mb-item">
+                        <Link
+                          href={item.href}
+                          className={`mb-menu-link ${isActive ? "active" : ""}`}
+                        >
+                          <span>{item.name}</span>
+                        </Link>
                       </li>
-                    )}
-                  </ul>
-                </div>
-              </li>
-              <li className="nav-mb-item">
-                <Link
-                  href="/blogs"
-                  className={`mb-menu-link ${pathname.startsWith("/blogs") ? "active" : ""}`}
-                >
-                  <span>Blog</span>
-                </Link>
-              </li>
-              <li className="nav-mb-item">
-                <a
-                  href="#dropdown-menu-five"
-                  className={`collapsed mb-menu-link ${pathname.startsWith("/page/")
-                      ? "active"
-                      : ""
-                    } `}
-                  data-bs-toggle="collapse"
-                  aria-expanded="true"
-                  aria-controls="dropdown-menu-five"
-                >
-                  <span>Pages</span>
-                  <span className="btn-open-sub" />
-                </a>
-                <div id="dropdown-menu-five" className="collapse">
-                  <ul className="sub-nav-menu">
-                    {loadingStaticPages ? (
-                      <li>
-                        <span className="sub-nav-link">Loading pages...</span>
-                      </li>
-                    ) : staticPages.length > 0 ? (
-                      staticPages.map((page, i) => (
-                        <li key={page._id || i}>
-                          <Link
-                            href={`/page/${page.slug}`}
-                            className={`sub-nav-link ${pathname === `/page/${page.slug}`
-                                ? "active"
-                                : ""
-                              } `}
-                          >
-                            {page.title}
-                          </Link>
-                        </li>
-                      ))
-                    ) : (
-                      <li>
-                        <span className="sub-nav-link">No pages found</span>
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </li>
+                    );
+                  })}
+                </>
+              )}
             </ul>
           </div>
           <div className="mb-other-content">

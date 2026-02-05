@@ -2,140 +2,129 @@
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getMainCategories, getCategories } from "@/features/category/api/categoryApi";
+import { getHeaderMenuConfig } from "@/features/headerMenu/api/headerMenuApi";
+import { getMainCategories } from "@/features/category/api/categoryApi";
 
 export default function MainNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const [categories, setCategories] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [showShopMenuEnabled, setShowShopMenuEnabled] = useState(true);
+  const [showShopMenuDropdown, setShowShopMenuDropdown] = useState(false);
+  const [shopMenuCategories, setShopMenuCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showShopMenu, setShowShopMenu] = useState(false);
+  const [hoveredCategory, setHoveredCategory] = useState(null);
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchMenuConfig = async () => {
       try {
         setLoading(true);
-        const response = await getMainCategories();
+        const response = await getHeaderMenuConfig();
+        
         if (response.success && response.data) {
-          // Check if childCategories are already in the response
-          // If not, fetch subcategories for each main category
-          const categoriesWithSubs = await Promise.all(
-            response.data.map(async (category) => {
-              // Check if childCategories already exist in the response
-              if (category.childCategories && category.childCategories.length > 0) {
-                // Filter only active child categories
-                const activeChildren = category.childCategories.filter(
-                  (child) => child.isActive !== false
-                );
-                return {
-                  ...category,
-                  children: activeChildren
-                };
-              }
-              
-              // If not, fetch subcategories separately
-              try {
-                const subResponse = await getCategories({
-                  parent: category._id,
-                  isActive: true
-                });
-                return {
-                  ...category,
-                  children: subResponse.success ? (subResponse.data || []) : []
-                };
-              } catch (err) {
-                console.error('Error fetching subcategories:', err);
-                return { ...category, children: [] };
-              }
-            })
-          );
-          setCategories(categoriesWithSubs);
+          // Ensure menu items are sorted by order
+          const sortedMenuItems = (response.data.menuItems || []).sort((a, b) => (a.order || 0) - (b.order || 0));
+          setMenuItems(sortedMenuItems);
+          setShowShopMenuEnabled(response.data.showShopMenu !== false);
+          
+          // If shop menu is enabled, fetch categories for shop dropdown
+          if (response.data.showShopMenu !== false) {
+            const categoriesResponse = await getMainCategories();
+            if (categoriesResponse.success && categoriesResponse.data) {
+              setShopMenuCategories(categoriesResponse.data);
+            }
+          }
+        } else {
+          // Fallback to default menu
+          setMenuItems([
+            { type: 'static', name: 'Home', href: '/', order: 0 },
+            { type: 'static', name: 'Shop', href: '/shop', order: 1 },
+            { type: 'static', name: 'Blog', href: '/blogs', order: 2 },
+            { type: 'static', name: 'Contact Us', href: '/contact', order: 3 }
+          ]);
+          setShowShopMenuEnabled(true);
         }
       } catch (error) {
-        console.error('Error fetching categories:', error);
-        setCategories([]);
+        console.error('Error fetching menu config:', error);
+        // Fallback to default menu
+        setMenuItems([
+          { type: 'static', name: 'Home', href: '/', order: 0 },
+          { type: 'static', name: 'Shop', href: '/shop', order: 1 },
+          { type: 'static', name: 'Blog', href: '/blogs', order: 2 },
+          { type: 'static', name: 'Contact Us', href: '/contact', order: 3 }
+        ]);
+        setShowShopMenuEnabled(true);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCategories();
+    fetchMenuConfig();
   }, []);
 
-  const menuItems = [
-    { name: "Home", href: "/" },
-    { name: "Shop", href: "/shop", hasMegamenu: true },
-    { name: "Blog", href: "/blogs" },
-    { name: "Contact Us", href: "/contact" },
-  ];
-
   const handleCategoryClick = (categorySlug) => {
-    setShowShopMenu(false);
-    // Navigate to shop page with category filter
+    setShowShopMenuDropdown(false);
+    setHoveredCategory(null);
     router.push(`/shop?category=${categorySlug}`);
   };
 
   return (
     <>
+      {/* Render menu items from config (static items + selected categories) */}
       {menuItems.map((item, index) => {
         const isActive = pathname === item.href || 
           (item.href !== "/" && pathname.startsWith(item.href));
         
-        if (item.hasMegamenu && item.name === "Shop") {
+        // Handle Shop menu item with dropdown (if enabled)
+        if (item.name === "Shop" && showShopMenuEnabled && shopMenuCategories.length > 0) {
           return (
             <li
-              key={index}
+              key={`shop-${index}`}
               className={`menu-item has-megamenu ${isActive ? "active" : ""}`}
-              onMouseEnter={() => setShowShopMenu(true)}
-              onMouseLeave={() => setShowShopMenu(false)}
+              onMouseEnter={() => setShowShopMenuDropdown(true)}
+              onMouseLeave={() => setShowShopMenuDropdown(false)}
             >
               <Link href={item.href} className="item-link">
                 {item.name}
               </Link>
-              {showShopMenu && (
+              {showShopMenuDropdown && (
                 <div className="sub-menu mega-menu">
                   <div className="container">
                     <div className="row">
-                      {loading ? (
-                        <div className="col-12 text-center p-4">Loading categories...</div>
-                      ) : categories.length > 0 ? (
-                        categories.map((category) => (
-                          <div key={category._id} className="col-lg-2">
-                            <div className="mega-menu-item">
-                              <Link
-                                href={`/shop?category=${category.slug}`}
-                                className="menu-heading"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  handleCategoryClick(category.slug);
-                                }}
-                              >
-                                {category.name}
-                              </Link>
-                              {category.children && category.children.length > 0 && (
-                                <ul className="menu-list">
-                                  {category.children.map((subcategory) => (
-                                    <li key={subcategory._id || subcategory.slug} className="menu-item-li">
-                                      <Link
-                                        href={`/shop?category=${subcategory.slug}`}
-                                        className="menu-link-text"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          handleCategoryClick(subcategory.slug);
-                                        }}
-                                      >
-                                        {subcategory.name}
-                                      </Link>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
+                      {shopMenuCategories.map((category) => (
+                        <div key={category._id} className="col-lg-2">
+                          <div className="mega-menu-item">
+                            <Link
+                              href={`/shop?category=${category.slug}`}
+                              className="menu-heading"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleCategoryClick(category.slug);
+                              }}
+                            >
+                              {category.name}
+                            </Link>
+                            {category.childCategories && category.childCategories.length > 0 && (
+                              <ul className="menu-list">
+                                {category.childCategories.map((subcategory) => (
+                                  <li key={subcategory._id || subcategory.slug} className="menu-item-li">
+                                    <Link
+                                      href={`/shop?category=${subcategory.slug}`}
+                                      className="menu-link-text"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        handleCategoryClick(subcategory.slug);
+                                      }}
+                                    >
+                                      {subcategory.name}
+                                    </Link>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
-                        ))
-                      ) : (
-                        <div className="col-12 text-center p-4">No categories found</div>
-                      )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -144,9 +133,106 @@ export default function MainNav() {
           );
         }
         
+        // Skip Shop item if shop menu dropdown is not enabled (render as regular link)
+        if (item.name === "Shop" && !showShopMenuEnabled) {
+          return (
+            <li
+              key={`${item.type}-${index}`}
+              className={`menu-item ${isActive ? "active" : ""}`}
+            >
+              <Link href={item.href} className="item-link">
+                {item.name}
+              </Link>
+            </li>
+          );
+        }
+        
+        // Skip Shop item if already handled above
+        if (item.name === "Shop") {
+          return null;
+        }
+        
+        // Handle category menu items with hover dropdown (custom menu - column layout)
+        if (item.type === 'category' && item.children && item.children.length > 0) {
+          return (
+            <li
+              key={`category-${item.categoryId || index}`}
+              className={`menu-item has-megamenu ${isActive ? "active" : ""}`}
+              onMouseEnter={() => setHoveredCategory(item.categoryId)}
+              onMouseLeave={() => setHoveredCategory(null)}
+            >
+              <Link href={item.href} className="item-link">
+                {item.name}
+              </Link>
+              {hoveredCategory === item.categoryId && (
+                <div className="sub-menu mega-menu">
+                  <div className="container">
+                    <div className="row">
+                      {item.children.map((subcategory) => (
+                        <div key={subcategory._id || subcategory.slug} className="col-lg-2">
+                          <div className="mega-menu-item">
+                            <Link
+                              href={`/shop?category=${subcategory.slug}`}
+                              className="menu-heading"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleCategoryClick(subcategory.slug);
+                              }}
+                            >
+                              {subcategory.name}
+                            </Link>
+                            {subcategory.children && subcategory.children.length > 0 && (
+                              <ul className="menu-list">
+                                {subcategory.children.map((grandchild) => (
+                                  <li key={grandchild._id || grandchild.slug} className="menu-item-li">
+                                    <Link
+                                      href={`/shop?category=${grandchild.slug}`}
+                                      className="menu-link-text"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        handleCategoryClick(grandchild.slug);
+                                      }}
+                                    >
+                                      {grandchild.name}
+                                    </Link>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        }
+        
+        // Handle manual menu items
+        if (item.type === 'manual') {
+          return (
+            <li
+              key={`manual-${index}`}
+              className={`menu-item ${isActive ? "active" : ""}`}
+            >
+              <Link 
+                href={item.href} 
+                className="item-link"
+                target={item.target || '_self'}
+                rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
+              >
+                {item.name}
+              </Link>
+            </li>
+          );
+        }
+        
+        // Handle static menu items and category items without children
         return (
           <li
-            key={index}
+            key={`${item.type}-${index}`}
             className={`menu-item ${isActive ? "active" : ""}`}
           >
             <Link href={item.href} className="item-link">
@@ -158,4 +244,3 @@ export default function MainNav() {
     </>
   );
 }
-

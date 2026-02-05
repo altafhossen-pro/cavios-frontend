@@ -1,4 +1,5 @@
-import Footer from "@/components/footers/Footer";
+// import Footer from "@/components/footers/Footer"; // Old footer - commented out
+import Footer from "@/components/footers/FooterNew";
 import MainHeader from "@/components/headers/MainHeader";
 
 import Login from "@/components/otherPages/Login";

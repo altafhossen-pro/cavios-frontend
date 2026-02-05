@@ -1,5 +1,6 @@
 import BlogDefault from "@/components/blogs/BlogDefault";
-import Footer from "@/components/footers/Footer";
+// import Footer from "@/components/footers/Footer"; // Old footer - commented out
+import Footer from "@/components/footers/FooterNew";
 import Header1 from "@/components/headers/Header1";
 import Link from "next/link";
 import React from "react";
