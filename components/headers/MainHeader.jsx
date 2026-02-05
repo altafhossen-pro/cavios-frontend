@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import MainNav from "./MainNav";
 import Image from "next/image";
 import Link from "next/link";
@@ -7,15 +7,82 @@ import CartLength from "../common/CartLength";
 import WishlistLength from "../common/WishlistLength";
 import { useContextElement } from "@/context/Context";
 import { useRouter } from "next/navigation";
+import { searchProducts } from "@/features/product/api/productApi";
+import { formatProductsForDisplay } from "@/features/product/utils/formatProduct";
+import ProductCard1 from "../productCards/ProductCard1";
 
 export default function MainHeader({ fullWidth = false }) {
   const { user, logoutUser } = useContextElement();
   const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const debounceTimer = useRef(null);
+  const searchRef = useRef(null);
 
   const handleLogout = () => {
     logoutUser();
     router.push('/');
   };
+
+  // Debounced search function
+  useEffect(() => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setLoading(true);
+    setShowSearchResults(true);
+
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const response = await searchProducts({ 
+          search: searchQuery.trim(),
+          limit: 8,
+          page: 1 
+        });
+        
+        if (response.success && response.data) {
+          const formattedProducts = formatProductsForDisplay(response.data);
+          setSearchResults(formattedProducts);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (error) {
+        console.error('Error searching products:', error);
+        setSearchResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 500);
+
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [searchQuery]);
+
+  // Close search results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   return (
     <header
       id="header"
@@ -33,18 +100,18 @@ export default function MainHeader({ fullWidth = false }) {
               <i className="icon icon-categories" />
             </a>
           </div>
-          <div className="col-xl-3 col-md-4 col-6">
+          <div className="col-xl-2 col-md-4 col-6">
             <Link href={`/`} className="logo-header">
               <Image
                 alt="logo"
                 className="logo"
                 src="/images/logo/logo.svg"
-                width={118}
+                width={100}
                 height={25}
               />
             </Link>
           </div>
-          <div className="col-xl-6 d-none d-xl-block">
+          <div className="col-xl-7 d-none d-xl-block">
             <nav className="box-navigation text-center">
               <ul className="box-nav-ul d-flex align-items-center justify-content-center">
                 <MainNav />
@@ -53,7 +120,8 @@ export default function MainHeader({ fullWidth = false }) {
           </div>
           <div className="col-xl-3 col-md-4 col-3">
             <ul className="nav-icon d-flex justify-content-end align-items-center">
-              <li className="nav-search">
+              {/* Mobile Search Icon */}
+              <li className="nav-search d-md-none">
                 <a
                   href="#search"
                   data-bs-toggle="modal"
@@ -84,8 +152,183 @@ export default function MainHeader({ fullWidth = false }) {
                   </svg>
                 </a>
               </li>
+              {/* Desktop Search Bar */}
+              <li className="nav-search d-none d-md-block" ref={searchRef} style={{ position: 'relative', marginRight: '12px' }}>
+                <div className="header-search-bar" style={{ position: 'relative' }}>
+                  <form 
+                    className="header-search-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (searchQuery.trim()) {
+                        router.push(`/shop?search=${encodeURIComponent(searchQuery.trim())}`);
+                        setShowSearchResults(false);
+                      }
+                    }}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      position: 'relative',
+                      width: '200px'
+                    }}
+                  >
+                    <input
+                      type="text"
+                      placeholder="Search"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={() => {
+                        if (searchResults.length > 0 || searchQuery.trim()) {
+                          setShowSearchResults(true);
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 40px 8px 12px',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        transition: 'border-color 0.3s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.borderColor = '#ccc';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.borderColor = '#e0e0e0';
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <svg
+                        width={18}
+                        height={18}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z"
+                          stroke="#666"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M21.35 21.0004L17 16.6504"
+                          stroke="#666"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </form>
+                  
+                  {/* Search Results Dropdown */}
+                  {showSearchResults && (
+                    <div 
+                      className="header-search-results"
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        background: '#fff',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '4px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        zIndex: 1000,
+                        maxHeight: '500px',
+                        overflowY: 'auto',
+                        minWidth: '350px',
+                        maxWidth: '500px'
+                      }}
+                    >
+                      {loading ? (
+                        <div style={{ padding: '20px', textAlign: 'center' }}>
+                          <p style={{ fontSize: '14px', color: '#666' }}>Searching...</p>
+                        </div>
+                      ) : searchResults.length > 0 ? (
+                        <div style={{ padding: '12px' }}>
+                          <div style={{ 
+                            paddingBottom: '8px', 
+                            marginBottom: '12px',
+                            borderBottom: '1px solid #e0e0e0'
+                          }}>
+                            <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+                              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
+                            </p>
+                          </div>
+                          <div style={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: 'repeat(2, 1fr)', 
+                            gap: '12px' 
+                          }}>
+                            {searchResults.map((product, i) => (
+                              <div 
+                                key={product.id || i}
+                                onClick={() => {
+                                  router.push(`/product/${product.slug}`);
+                                  setShowSearchResults(false);
+                                  setSearchQuery('');
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <ProductCard1 product={product} />
+                              </div>
+                            ))}
+                          </div>
+                          {searchQuery.trim() && (
+                            <div style={{ 
+                              marginTop: '12px', 
+                              paddingTop: '12px',
+                              borderTop: '1px solid #e0e0e0',
+                              textAlign: 'center'
+                            }}>
+                              <Link 
+                                href={`/shop?search=${encodeURIComponent(searchQuery.trim())}`}
+                                style={{
+                                  fontSize: '14px',
+                                  color: '#181818',
+                                  textDecoration: 'none',
+                                  fontWeight: '500'
+                                }}
+                                onClick={() => {
+                                  setShowSearchResults(false);
+                                  setSearchQuery('');
+                                }}
+                              >
+                                View all results →
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      ) : searchQuery.trim() ? (
+                        <div style={{ padding: '20px', textAlign: 'center' }}>
+                          <p style={{ fontSize: '14px', color: '#666' }}>
+                            No products found for "{searchQuery}"
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </li>
               <li className="nav-account">
-                <a href="#" className="nav-icon-item">
+                <a href="#" className="nav-icon-item" style={{ position: 'relative' }}>
                   <svg
                     className="icon"
                     width={24}
@@ -109,6 +352,27 @@ export default function MainHeader({ fullWidth = false }) {
                       strokeLinejoin="round"
                     />
                   </svg>
+                  {/* Optional badge - can be conditionally shown based on notifications */}
+                  {/* <span 
+                    className="count-box" 
+                    style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      background: '#34C759',
+                      color: '#fff',
+                      borderRadius: '50%',
+                      width: '18px',
+                      height: '18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    1
+                  </span> */}
                 </a>
                 {user ? (
                   <div className="dropdown-account dropdown-login">
@@ -227,6 +491,31 @@ export default function MainHeader({ fullWidth = false }) {
           .header-logout-btn:hover {
             background-color: #c82333 !important;
             color: #ffffff !important;
+          }
+          .header-search-bar input:focus {
+            border-color: #181818 !important;
+          }
+          .header-search-results {
+            scrollbar-width: thin;
+            scrollbar-color: #ccc #f5f5f5;
+          }
+          .header-search-results::-webkit-scrollbar {
+            width: 6px;
+          }
+          .header-search-results::-webkit-scrollbar-track {
+            background: #f5f5f5;
+          }
+          .header-search-results::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+          }
+          .header-search-results::-webkit-scrollbar-thumb:hover {
+            background: #999;
+          }
+          @media (max-width: 767px) {
+            .header-search-bar {
+              display: none;
+            }
           }
         `
       }} />

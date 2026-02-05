@@ -14,6 +14,7 @@ export default function MainNav() {
   const [shopMenuCategories, setShopMenuCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hoveredCategory, setHoveredCategory] = useState(null);
+  const [hoveredManualItem, setHoveredManualItem] = useState(null);
 
   useEffect(() => {
     const fetchMenuConfig = async () => {
@@ -210,12 +211,24 @@ export default function MainNav() {
           );
         }
         
-        // Handle manual menu items
+        // Handle manual menu items with submenus
         if (item.type === 'manual') {
+          const hasSubmenus = item.submenus && item.submenus.length > 0;
+          const uniqueKey = `manual-${item.name}-${index}`;
+          
           return (
             <li
-              key={`manual-${index}`}
-              className={`menu-item ${isActive ? "active" : ""}`}
+              key={uniqueKey}
+              className={`menu-item ${hasSubmenus ? 'has-dropdown' : ''} ${isActive ? "active" : ""}`}
+              style={hasSubmenus ? { position: 'relative' } : {}}
+              onMouseEnter={() => {
+                if (hasSubmenus) {
+                  setHoveredManualItem(uniqueKey);
+                }
+              }}
+              onMouseLeave={() => {
+                setHoveredManualItem(null);
+              }}
             >
               <Link 
                 href={item.href} 
@@ -224,7 +237,53 @@ export default function MainNav() {
                 rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
               >
                 {item.name}
+                {hasSubmenus && <i className="icon icon-arrowDown" />}
               </Link>
+              {hasSubmenus && hoveredManualItem === uniqueKey && (
+                <ul 
+                  className="sub-menu"
+                  onMouseEnter={() => setHoveredManualItem(uniqueKey)}
+                  onMouseLeave={() => setHoveredManualItem(null)}
+                  style={{
+                    position: 'absolute',
+                    top: '90%',
+                    left: '-50px',
+                    minWidth: '200px',
+                    backgroundColor: '#fff',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    padding: '8px 0',
+                    margin: 0,
+                    listStyle: 'none'
+                  }}
+                >
+                  {item.submenus.map((submenu, subIndex) => (
+                    <li key={`submenu-${subIndex}`} className="menu-item-li" style={{ margin: 0 }}>
+                      <Link
+                        href={submenu.href}
+                        className="menu-link-text"
+                        target={submenu.target || '_self'}
+                        rel={submenu.target === '_blank' ? 'noopener noreferrer' : undefined}
+                        style={{
+                          display: 'block',
+                          padding: '8px 20px',
+                          textDecoration: 'none',
+                          color: '#181818',
+                          transition: 'background-color 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f5f5f5';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {submenu.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         }

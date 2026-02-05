@@ -137,9 +137,9 @@ export default function FooterNew({
           <div className="footer-body pt-4">
             <div className="container">
               <div className="row">
-                {/* Dynamic Columns (First 3 columns) */}
+                {/* Dynamic Columns (Up to 6 columns) */}
                 {footerData.dynamicColumns && footerData.dynamicColumns.length > 0 && (
-                  footerData.dynamicColumns.slice(0, 3).map((column, colIndex) => (
+                  footerData.dynamicColumns.map((column, colIndex) => (
                     <div key={colIndex} className="col-lg-2 col-md-4 col-sm-6">
                       <div className="footer-col-block">
                         <div className="footer-heading text-button footer-heading-mobile" style={{ color: '#ffffff' }}>
@@ -172,167 +172,40 @@ export default function FooterNew({
                     </div>
                   ))
                 )}
-
-                {/* Support Column */}
-                {footerData.supportColumn && footerData.supportColumn.isActive && (
-                  <div className="col-lg-2 col-md-4 col-sm-6">
-                    <div className="footer-col-block">
-                      <div className="footer-heading text-button footer-heading-mobile" style={{ color: '#ffffff' }}>
-                        {footerData.supportColumn.heading}
-                      </div>
-                      <div className="tf-collapse-content">
-                        <ul className="footer-menu-list">
-                          {footerData.supportColumn.items && footerData.supportColumn.items.map((item, itemIndex) => (
-                            <li className="text-caption-1" key={itemIndex}>
-                              {item.target === '_blank' ? (
-                                <a
-                                  href={item.href}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="footer-menu_item"
-                                  style={{ color: '#ffffff' }}
-                                >
-                                  {item.label}
-                                </a>
-                              ) : (
-                                <Link href={item.href} className="footer-menu_item" style={{ color: '#ffffff' }}>
-                                  {item.label}
-                                </Link>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Company Info Column */}
-                {footerData.companyInfoColumn && footerData.companyInfoColumn.isActive && (
-                  <div className="col-lg-2 col-md-4 col-sm-6">
-                    <div className="footer-col-block">
-                      <div className="footer-heading text-button footer-heading-mobile" style={{ color: '#ffffff' }}>
-                        {footerData.companyInfoColumn.heading}
-                      </div>
-                      <div className="tf-collapse-content">
-                        <ul className="footer-menu-list">
-                          {footerData.companyInfoColumn.items && footerData.companyInfoColumn.items.map((item, itemIndex) => (
-                            <li className="text-caption-1" key={itemIndex}>
-                              {item.target === '_blank' ? (
-                                <a
-                                  href={item.href}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="footer-menu_item"
-                                  style={{ color: '#ffffff' }}
-                                >
-                                  {item.label}
-                                </a>
-                              ) : (
-                                <Link href={item.href} className="footer-menu_item" style={{ color: '#ffffff' }}>
-                                  {item.label}
-                                </Link>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Follow Us Column */}
-                {footerData.followUsColumn && footerData.followUsColumn.isActive && (
-                  <div className="col-lg-2 col-md-4 col-sm-6">
-                    <div className="footer-col-block">
-                      <div className="footer-heading text-button footer-heading-mobile" style={{ color: '#ffffff' }}>
-                        {footerData.followUsColumn.heading}
-                      </div>
-                      <div className="tf-collapse-content">
-                        <ul className={`tf-social-icon ${dark ? "style-white" : ""}`} style={{ color: '#ffffff' }}>
-                          {footerData.followUsColumn.socialLinks && footerData.followUsColumn.socialLinks.map((link, linkIndex) => (
-                            <li key={linkIndex}>
-                              <a
-                                href={link.href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ color: '#ffffff', borderColor: '#ffffff' }}
-                              >
-                                <i className={`icon ${link.iconClass}`} style={{ color: '#ffffff' }} />
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
               </div>
             </div>
           </div>
-          <div className="footer-bottom">
+          <div className="footer-bottom" style={{ padding: '20px 0' }}>
             <div className="container">
               <div className="row">
                 <div className="col-12">
-                  <div className="footer-bottom-wrap">
-                    <div className="left">
-                      <p className="text-caption-1" style={{ color: '#ffffff' }}>
-                        ©{new Date().getFullYear()} Cavios. All Rights Reserved.
-                      </p>
+                  <div className="footer-bottom-wrap" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div className="left" style={{ flex: '1', minWidth: '200px' }}>
+                      {footerData.bottomSection?.privacyPolicy?.href ? (
+                        <Link href={footerData.bottomSection.privacyPolicy.href} style={{ color: '#ffffff', textDecoration: 'none' }}>
+                          {footerData.bottomSection.privacyPolicy.label || 'Privacy Policy'}
+                        </Link>
+                      ) : (
+                        <span style={{ color: '#ffffff' }}>
+                          {footerData.bottomSection?.privacyPolicy?.label || 'Privacy Policy'}
+                        </span>
+                      )}
                     </div>
-                    <div className="tf-payment">
-                      <p className="text-caption-1" style={{ color: '#ffffff' }}>Payment:</p>
-                      <ul>
-                        <li>
-                          <Image
-                            alt="Payment Method"
-                            src="/images/payment/img-1.png"
-                            width={100}
-                            height={64}
-                          />
-                        </li>
-                        <li>
-                          <Image
-                            alt="Payment Method"
-                            src="/images/payment/img-2.png"
-                            width={100}
-                            height={64}
-                          />
-                        </li>
-                        <li>
-                          <Image
-                            alt="Payment Method"
-                            src="/images/payment/img-3.png"
-                            width={100}
-                            height={64}
-                          />
-                        </li>
-                        <li>
-                          <Image
-                            alt="Payment Method"
-                            src="/images/payment/img-4.png"
-                            width={98}
-                            height={64}
-                          />
-                        </li>
-                        <li>
-                          <Image
-                            alt="Payment Method"
-                            src="/images/payment/img-5.png"
-                            width={102}
-                            height={64}
-                          />
-                        </li>
-                        <li>
-                          <Image
-                            alt="Payment Method"
-                            src="/images/payment/img-6.png"
-                            width={98}
-                            height={64}
-                          />
-                        </li>
-                      </ul>
+                    <div className="center" style={{ flex: '1', textAlign: 'center', minWidth: '200px' }}>
+                      {footerData.bottomSection?.termsAndConditions?.href ? (
+                        <Link href={footerData.bottomSection.termsAndConditions.href} style={{ color: '#ffffff', textDecoration: 'none' }}>
+                          {footerData.bottomSection.termsAndConditions.label || 'Terms & Conditions'}
+                        </Link>
+                      ) : (
+                        <span style={{ color: '#ffffff' }}>
+                          {footerData.bottomSection?.termsAndConditions?.label || 'Terms & Conditions'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="right" style={{ flex: '1', textAlign: 'right', minWidth: '200px' }}>
+                      <p className="text-caption-1" style={{ color: '#ffffff', margin: 0 }}>
+                        {(footerData.bottomSection?.copyright || `© Cavios® ${new Date().getFullYear()}. Designed for performance. Built to last.`).replace('{year}', new Date().getFullYear().toString())}
+                      </p>
                     </div>
                   </div>
                 </div>
