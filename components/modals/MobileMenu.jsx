@@ -34,13 +34,56 @@ export default function MobileMenu() {
         
         if (response.success && response.data) {
           const sortedMenuItems = (response.data.menuItems || []).sort((a, b) => (a.order || 0) - (b.order || 0));
+          console.log('MobileMenu: Menu items from API:', sortedMenuItems);
+          // Log category items with children for debugging
+          sortedMenuItems.forEach((item, idx) => {
+            if (item.type === 'category') {
+              console.log(`MobileMenu: Category item ${idx} (${item.name}):`, {
+                hasChildren: !!item.children,
+                childrenLength: item.children?.length || 0,
+                children: item.children
+              });
+            }
+          });
           setMenuItems(sortedMenuItems);
           setShowShopMenuEnabled(response.data.showShopMenu !== false);
           
           if (response.data.showShopMenu !== false) {
             const categoriesResponse = await getMainCategories();
             if (categoriesResponse.success && categoriesResponse.data) {
-              setShopMenuCategories(categoriesResponse.data);
+              // Process categories to ensure childCategories are properly included
+              const processedCategories = await Promise.all(
+                categoriesResponse.data.map(async (category) => {
+                  // Check if childCategories already exist in the response
+                  if (category.childCategories && category.childCategories.length > 0) {
+                    // Filter only active child categories
+                    const activeChildren = category.childCategories.filter(
+                      (child) => child.isActive !== false
+                    );
+                    return {
+                      ...category,
+                      childCategories: activeChildren
+                    };
+                  }
+                  
+                  // If not, fetch subcategories separately (fallback)
+                  try {
+                    const subResponse = await getCategories({
+                      parent: category._id,
+                      isActive: true
+                    });
+                    return {
+                      ...category,
+                      childCategories: subResponse.success ? (subResponse.data || []) : []
+                    };
+                  } catch (err) {
+                    console.error('Error fetching subcategories for shop menu:', err);
+                    return { ...category, childCategories: [] };
+                  }
+                })
+              );
+              console.log('MobileMenu: Processed shopMenuCategories:', processedCategories);
+              setShopMenuCategories(processedCategories);
             }
           }
         }
@@ -289,9 +332,14 @@ export default function MobileMenu() {
                               <span className="sub-nav-link">Loading categories...</span>
                             </li>
                           ) : shopMenuCategories.length > 0 ? (
-                            shopMenuCategories.map((category, categoryIndex) => (
-                              <li key={category._id || categoryIndex}>
-                                {category.childCategories && category.childCategories.length > 0 ? (
+                            shopMenuCategories.map((category, categoryIndex) => {
+                              const hasChildCategories = category.childCategories && 
+                                Array.isArray(category.childCategories) && 
+                                category.childCategories.length > 0;
+                              
+                              return (
+                                <li key={category._id || categoryIndex}>
+                                  {hasChildCategories ? (
                                   <>
                                     <a
                                       href={`#sub-shop-category-${categoryIndex}`}
@@ -362,10 +410,11 @@ export default function MobileMenu() {
                                     }}
                                   >
                                     {category.name}
-                                  </Link>
-                                )}
-                              </li>
-                            ))
+                                    </Link>
+                                  )}
+                                  </li>
+                                );
+                              })
                           ) : (
                             <li>
                               <span className="sub-nav-link">No categories found</span>
@@ -387,7 +436,13 @@ export default function MobileMenu() {
                     }
 
                     // Handle category menu items with subcategories
-                    if (item.type === 'category' && item.children && item.children.length > 0) {
+                    // Check for children array and ensure it has items
+                    const hasChildren = item.type === 'category' && 
+                      item.children && 
+                      Array.isArray(item.children) && 
+                      item.children.length > 0;
+                    
+                    if (hasChildren) {
                       return (
                         <li key={`category-${item.categoryId || index}`} className="nav-mb-item">
                           <a
@@ -402,9 +457,14 @@ export default function MobileMenu() {
                           </a>
                           <div id={`dropdown-menu-category-${index}`} className="collapse">
                             <ul className="sub-nav-menu">
-                              {item.children.map((subcategory, subIndex) => (
-                                <li key={subcategory._id || subIndex}>
-                                  {subcategory.children && subcategory.children.length > 0 ? (
+                              {item.children.map((subcategory, subIndex) => {
+                                const hasSubChildren = subcategory.children && 
+                                  Array.isArray(subcategory.children) && 
+                                  subcategory.children.length > 0;
+                                
+                                return (
+                                  <li key={subcategory._id || subIndex}>
+                                    {hasSubChildren ? (
                                     <>
                                       <a
                                         href={`#sub-category-${index}-${subIndex}`}
@@ -450,8 +510,9 @@ export default function MobileMenu() {
                                       {subcategory.name}
                                     </Link>
                                   )}
-                                </li>
-                              ))}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           </div>
                         </li>

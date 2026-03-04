@@ -94,15 +94,15 @@ export default function RootLayout({ children }) {
     };
   }, [pathname]);
   const prevPathnameRef = useRef(pathname);
-  
+
   useEffect(() => {
     // Only close modals/offcanvas if pathname actually changed (not just query params)
     if (prevPathnameRef.current === pathname) {
       return; // Pathname didn't change, only query params - don't close anything
     }
-    
+
     prevPathnameRef.current = pathname;
-    
+
     // Close any open modal
     const bootstrap = require("bootstrap"); // dynamically import bootstrap
     const modalElements = document.querySelectorAll(".modal.show");
@@ -158,7 +158,7 @@ export default function RootLayout({ children }) {
           <Compare />
           <MobileMenu />
 
-          {/* <NewsLetterModal /> */}
+          <NewsLetterModal />
           <SearchModal />
           <SizeGuide />
           <Wishlist />
