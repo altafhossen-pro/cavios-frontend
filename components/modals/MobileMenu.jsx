@@ -44,6 +44,13 @@ export default function MobileMenu() {
                 children: item.children
               });
             }
+            if (item.type === 'manual') {
+              console.log(`MobileMenu: Manual item ${idx} (${item.name}):`, {
+                hasSubmenus: !!item.submenus,
+                submenusLength: item.submenus?.length || 0,
+                submenus: item.submenus
+              });
+            }
           });
           setMenuItems(sortedMenuItems);
           setShowShopMenuEnabled(response.data.showShopMenu !== false);
@@ -521,6 +528,54 @@ export default function MobileMenu() {
 
                     // Handle manual menu items
                     if (item.type === 'manual') {
+                      const hasSubmenus = item.submenus && 
+                        Array.isArray(item.submenus) && 
+                        item.submenus.length > 0;
+                      
+                      // If manual item has submenus, render with collapse functionality
+                      if (hasSubmenus) {
+                        return (
+                          <li key={`manual-${index}`} className="nav-mb-item">
+                            <a
+                              href={`#dropdown-menu-manual-${index}`}
+                              className={`collapsed mb-menu-link ${isActive ? "active" : ""}`}
+                              data-bs-toggle="collapse"
+                              aria-expanded="false"
+                              aria-controls={`dropdown-menu-manual-${index}`}
+                            >
+                              <span>{item.name}</span>
+                              <span className="btn-open-sub" />
+                            </a>
+                            <div id={`dropdown-menu-manual-${index}`} className="collapse">
+                              <ul className="sub-nav-menu">
+                                {item.submenus.map((submenu, subIndex) => (
+                                  <li key={`submenu-${subIndex}`}>
+                                    {submenu.target === '_blank' ? (
+                                      <a
+                                        href={submenu.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="sub-nav-link"
+                                      >
+                                        {submenu.name}
+                                      </a>
+                                    ) : (
+                                      <Link
+                                        href={submenu.href}
+                                        className="sub-nav-link"
+                                      >
+                                        {submenu.name}
+                                      </Link>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </li>
+                        );
+                      }
+                      
+                      // Manual item without submenus
                       return (
                         <li key={`manual-${index}`} className="nav-mb-item">
                           {item.target === '_blank' ? (
