@@ -86,6 +86,32 @@ export default function Slider4({
   const [thumbsSwiper, setThumbsSwiper] = useState(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const swiperRef = useRef(null);
+  const touchStartRef = useRef({ x: 0, y: 0 });
+
+  // Handle touch start to detect scroll direction
+  const handleTouchStart = (swiper, event) => {
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  // Handle touch move to detect if it's vertical scroll
+  const handleTouchMove = (swiper, event) => {
+    if (!touchStartRef.current.x && !touchStartRef.current.y) return;
+    
+    const touch = event.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+    
+    // If vertical movement is greater than horizontal, it's a vertical scroll
+    if (deltaY > deltaX && deltaY > 10) {
+      // Disable Swiper's touch handling to allow page scroll
+      if (swiper.touchEventsData) {
+        swiper.touchEventsData.isTouched = false;
+        swiper.touchEventsData.startMoving = false;
+      }
+    }
+  };
+
   useEffect(() => {
     if (!(items[activeIndex].variant == activeVarient)) {
       const slideIndex =
@@ -147,7 +173,16 @@ export default function Slider4({
         slidesPerView={1}
         thumbs={{ swiper: thumbsSwiper }}
         modules={[Thumbs]}
+        touchEventsTarget="container"
+        allowTouchMove={true}
+        touchStartPreventDefault={false}
+        touchMoveStopPropagation={false}
+        threshold={10}
+        longSwipesRatio={0.5}
+        longSwipesMs={300}
         onSwiper={(swiper) => (swiperRef.current = swiper)}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onSlideChange={(swiper) => {
           if (items[swiper.activeIndex]) {
             setActiveIndex(swiper.activeIndex);

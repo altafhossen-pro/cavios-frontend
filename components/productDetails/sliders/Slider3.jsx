@@ -119,9 +119,18 @@ export default function Slider3({
         }}
         thumbs={{ swiper: thumbsSwiper }}
         modules={[Thumbs, Navigation]}
+        touchEventsTarget="container"
+        allowTouchMove={true}
+        touchStartPreventDefault={false}
+        touchMoveStopPropagation={false}
+        threshold={10}
+        longSwipesRatio={0.5}
+        longSwipesMs={300}
         onSwiper={(swiper) => {
           swiperRef.current = swiper;
         }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onSlideChange={(swiper) => {
           if (items[swiper.activeIndex]) {
             setActiveIndex(swiper.activeIndex);

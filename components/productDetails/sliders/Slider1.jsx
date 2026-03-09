@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Navigation, Thumbs } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import Image from "next/image";
+import SliderMobile from "./SliderMobile";
 export default function Slider1({
   activeColor = "gray",
   setActiveColor = () => {},
@@ -89,6 +90,17 @@ export default function Slider1({
   const [thumbsSwiper, setThumbsSwiper] = useState(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const swiperRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   useEffect(() => {
     // Only auto-slide if disableAutoSlide is false (manual selection)
     // disableAutoSlide = false means manual selection, so allow auto slide
@@ -111,6 +123,11 @@ export default function Slider1({
       }
     });
   }, []);
+
+  // Show mobile slider on mobile devices
+  if (isMobile) {
+    return <SliderMobile firstItem={firstItem} slideItems={slideItems} />;
+  }
 
   return (
     <div className="thumbs-slider">

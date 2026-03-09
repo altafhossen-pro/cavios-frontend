@@ -2,7 +2,7 @@
 import { useContextElement } from "@/context/Context";
 import { products41 } from "@/data/products";
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import QuantitySelect from "./QuantitySelect";
 import SizeSelect2 from "./SideSelect2";
 
@@ -15,6 +15,21 @@ export default function ProductStikyBottom() {
     updateQuantity,
   } = useContextElement();
   const [quantity, setQuantity] = useState(1); // Initial quantity is 1
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 991);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Hide on mobile devices
+  if (isMobile) {
+    return null;
+  }
 
   return (
     <div className="tf-sticky-btn-atc">

@@ -34,6 +34,43 @@
     &.zoom-active .other-image-zoom {
         opacity: 0.3;
     }
+    
+    // Fix mobile scroll issue - allow vertical scrolling on images
+    // Mobile devices only
+    @media (max-width: 768px) {
+        .tf-image-zoom {
+            touch-action: pan-y !important;
+            -webkit-touch-callout: default;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        // Ensure swiper container allows scrolling on mobile
+        .tf-product-media-main {
+            touch-action: pan-y !important;
+            
+            .swiper-wrapper {
+                touch-action: pan-y !important;
+            }
+            
+            .swiper-slide {
+                touch-action: pan-y !important;
+                
+                .item {
+                    touch-action: pan-y !important;
+                }
+                
+                img {
+                    touch-action: pan-y !important;
+                }
+            }
+        }
+        
+        // Thumbs slider should also allow scrolling on mobile
+        .tf-product-media-thumbs {
+            touch-action: pan-y !important;
+        }
+    }
 }
 
 .pswp__bg {
