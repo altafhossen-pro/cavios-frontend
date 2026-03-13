@@ -14,7 +14,7 @@ import ShopGram from "@/components/common/ShopGram";
 import Testimonials from "@/components/common/Testimonials";
 
 export const metadata = {
-  title: "Home || Cavios",
+  title: "Cavios Official Store | Premium Performance Activewear",
   description: "Cavios",
 };
 

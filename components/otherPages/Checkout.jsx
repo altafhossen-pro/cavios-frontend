@@ -484,7 +484,7 @@ export default function Checkout() {
             <div className="col-12">
               <div className="p-4 text-center">
                 <p>Your cart is empty. Please add items to checkout.</p>
-                <Link className="btn-line" href="/shop-default-grid">
+                <Link className="btn-line" href="/shop">
                   Continue Shopping
                 </Link>
               </div>

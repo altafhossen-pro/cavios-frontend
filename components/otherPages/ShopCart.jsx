@@ -458,7 +458,7 @@ export default function ShopCart() {
               ) : (
                 <div className="empty-cart-message">
                   <p>Your cart is empty. Start adding your favorite products to your cart!</p>
-                  <Link className="btn-line" href="/shop-default-grid">
+                  <Link className="btn-line" href="/shop">
                     Explore Products
                   </Link>
                 </div>
