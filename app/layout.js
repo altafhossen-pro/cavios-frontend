@@ -147,6 +147,9 @@ export default function RootLayout({ children }) {
   }, [pathname]);
   return (
     <html lang="en">
+      <head>
+        <link rel="shortcut icon" href="/images/logo/favicon-3.png" type="image/x-icon"/>
+      </head>
       <body className="preload-wrapper popup-loader">
         <Context>
           {/* <RtlToggler /> */}
