@@ -77,7 +77,7 @@ export default function FooterNew({
         className={`footer ${dark ? "bg-main" : ""} ${hasPaddingBottom ? "has-pb" : ""}`}
       >
         <div className={`footer-wrap ${!border ? "border-0" : ""}`}>
-          <div className="footer-body pt-4">
+          <div className="footer-body pt-4 pb-4">
             <div className="container">
               <div className="row">
                 {/* Dynamic Columns (Up to 6 columns) */}
