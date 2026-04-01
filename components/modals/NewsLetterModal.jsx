@@ -2,68 +2,129 @@
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import axios from "axios";
+import { getNewsletterSettings, subscribeToNewsletter } from "@/features/newsletter/api/newsletterApi";
+
 export default function NewsLetterModal() {
   const pathname = usePathname();
   const modalElement = useRef();
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await getNewsletterSettings();
+        if (response.success) {
+          setSettings(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching newsletter settings:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   useEffect(() => {
     const showModal = async () => {
-      if (pathname === "/") {
-        const bootstrap = await import("bootstrap"); // dynamically import bootstrap
-        const myModal = new bootstrap.Modal(
-          document.getElementById("newsletterPopup"),
-          {
-            keyboard: false,
-          }
-        );
+      if (pathname === "/" && settings?.isActive !== false) {
+        // --- Persistence Logic ---
+        const DISMISSED_KEY = "newsletter_dismissed";
+        const SESSION_KEY = "newsletter_session_dismissed";
+        
+        const isForceShow = settings?.forceShow === true;
+        const interval = settings?.showInterval || "once";
 
-        // Show the modal after a delay using a promise
+        let shouldShow = true;
+
+        if (!isForceShow) {
+          if (interval === "once") {
+            if (localStorage.getItem(DISMISSED_KEY)) shouldShow = false;
+          } else if (interval === "every_session") {
+            if (sessionStorage.getItem(SESSION_KEY)) shouldShow = false;
+          } else if (interval === "every_reload") {
+            // No persistence check, show every time
+            shouldShow = true;
+          }
+        }
+
+        if (!shouldShow) return;
+
+        const bootstrap = await import("bootstrap"); // dynamically import bootstrap
+        const modalEl = document.getElementById("newsletterPopup");
+        if (!modalEl) return;
+
+        const myModal = new bootstrap.Modal(modalEl, {
+          keyboard: false,
+        });
+
+        // Show the modal after a delay
         await new Promise((resolve) => setTimeout(resolve, 2000));
         myModal.show();
 
-        modalElement.current.addEventListener("hidden.bs.modal", () => {
+        const handleDismiss = () => {
+          if (interval === "once") {
+            localStorage.setItem(DISMISSED_KEY, "true");
+          } else if (interval === "every_session") {
+            sessionStorage.setItem(SESSION_KEY, "true");
+          }
+        };
+
+        modalEl.addEventListener("hidden.bs.modal", () => {
+          handleDismiss();
           myModal.hide();
         });
       }
     };
 
-    showModal();
-  }, [pathname]);
+    if (settings) {
+      showModal();
+    }
+  }, [pathname, settings]);
+
   const [success, setSuccess] = useState(true);
   const [showMessage, setShowMessage] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const handleShowMessage = () => {
     setShowMessage(true);
     setTimeout(() => {
       setShowMessage(false);
-    }, 2000);
+    }, 3000);
   };
+
   const sendEmail = async (e) => {
-    e.preventDefault(); // Prevent default form submission behavior
+    e.preventDefault();
     const email = e.target.email.value;
 
+    setIsSubscribing(true);
     try {
-      const response = await axios.post(
-        "https://express-brevomail.vercel.app/api/contacts",
-        {
-          email,
-        }
-      );
+      const response = await subscribeToNewsletter(email);
 
-      if ([200, 201].includes(response.status)) {
-        e.target.reset(); // Reset the form
-        setSuccess(true); // Set success state
+      if (response.success) {
+        e.target.reset();
+        setSuccess(true);
         handleShowMessage();
+        // Also mark as dismissed so it doesn't show again if they subscribed
+        localStorage.setItem("newsletter_dismissed", "true");
       } else {
-        setSuccess(false); // Handle unexpected responses
+        setSuccess(false);
+        setErrorMessage(response.message || (settings?.errorMessage || "Something went wrong"));
         handleShowMessage();
       }
     } catch (error) {
-      console.error("Error:", error.response?.data || "An error occurred");
-      setSuccess(false); // Set error state
+      setSuccess(false);
+      setErrorMessage(settings?.errorMessage || "An error occurred");
       handleShowMessage();
-      e.target.reset(); // Reset the form
+      e.target.reset();
+    } finally {
+      setIsSubscribing(false);
     }
   };
+
+  if (!settings || !settings.isActive) return null;
 
   return (
     <div
@@ -76,9 +137,9 @@ export default function NewsLetterModal() {
           <div className="modal-top">
             <Image
               className="lazyload"
-              data-src="/images/section/newsletter.jpg"
-              alt="/images"
-              src="/images/section/newsletter.jpg"
+              data-src={settings?.image || "/images/section/newsletter.jpg"}
+              alt="newsletter"
+              src={settings?.image || "/images/section/newsletter.jpg"}
               width={660}
               height={440}
             />
@@ -89,22 +150,24 @@ export default function NewsLetterModal() {
           </div>
           <div className="modal-bottom text-center">
             <p className="text-btn-uppercase fw-4 font-2">
-              Subscribe To Our Newletter!
+              {settings?.title || "Subscribe To Our Newletter!"}
             </p>
             <h5>
-              Receive 10% OFF your next order, exclusive offers &amp; more!
+              {settings?.subtitle || "Receive 10% OFF your next order, exclusive offers & more!"}
             </h5>
             <div
-              className={`tfSubscribeMsg  footer-sub-element ${
-                showMessage ? "active" : ""
+              className={`tfSubscribeMsg footer-sub-element ${
+                showMessage || isSubscribing ? "active" : ""
               }`}
             >
-              {success ? (
+              {isSubscribing ? (
+                <p style={{ color: "blue" }}>Subscribing, please wait...</p>
+              ) : success ? (
                 <p style={{ color: "rgb(52, 168, 83)" }}>
-                  You have successfully subscribed.
+                  {settings?.successMessage || "You have successfully subscribed."}
                 </p>
               ) : (
-                <p style={{ color: "red" }}>Something went wrong</p>
+                <p style={{ color: "red" }}>{errorMessage}</p>
               )}
             </div>
             <form
@@ -120,41 +183,49 @@ export default function NewsLetterModal() {
                   type="email"
                   name="email"
                   id="subscribe-email"
-                  placeholder="Enter your e-mail"
+                  placeholder={settings?.placeholder || "Enter your e-mail"}
                   required
+                  disabled={isSubscribing}
                 />
                 <button
                   type="submit"
                   id="subscribe-button"
                   className="btn-style-2 radius-12 w-100 justify-content-center"
+                  disabled={isSubscribing}
                 >
-                  <span className="text text-btn-uppercase">SUBSCRIBE</span>
+                  <span className="text text-btn-uppercase">
+                    {isSubscribing ? "SUBSCRIBING..." : (settings?.buttonText || "SUBSCRIBE")}
+                  </span>
                 </button>
               </div>
               <div id="subscribe-msg" />
             </form>
-            <ul className="tf-social-icon style-default justify-content-center">
-              <li>
-                <a href="#" className="social-facebook">
-                  <i className="icon icon-fb" />
-                </a>
-              </li>
-              <li>
-                <a href="#" className="social-twiter">
-                  <i className="icon icon-x" />
-                </a>
-              </li>
-              <li>
-                <a href="#" className="social-instagram">
-                  <i className="icon icon-instagram" />
-                </a>
-              </li>
-              <li>
-                <a href="#" className="social-pinterest">
-                  <i className="icon icon-pinterest" />
-                </a>
-              </li>
-            </ul>
+            {settings?.showSocialIcons !== false && settings?.socialIcons && (
+              <ul className="tf-social-icon style-default justify-content-center">
+                {settings.socialIcons.map((social, index) => {
+                  const iconMap = {
+                    facebook: "icon-fb",
+                    youtube: "icon-youtube",
+                    instagram: "icon-instagram",
+                    twitter: "icon-x",
+                    linkedin: "icon-in",
+                    whatsapp: "icon-whatsapp",
+                    tiktok: "icon-tiktok",
+                    pinterest: "icon-pinterest",
+                    amazon: "icon-amazon"
+                  };
+                  const iconClass = iconMap[social.platform] || "icon-share";
+
+                  return (
+                    <li key={index}>
+                      <a href={social.href} className={`social-${social.platform}`}>
+                        <i className={`icon ${iconClass}`} />
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </div>

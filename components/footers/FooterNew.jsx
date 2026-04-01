@@ -89,26 +89,49 @@ export default function FooterNew({
                           {column.heading}
                         </div>
                         <div className="tf-collapse-content">
-                          <ul className="footer-menu-list">
-                            {column.items && column.items.map((item, itemIndex) => (
-                              <li className="text-caption-1" key={itemIndex}>
-                                {item.target === '_blank' ? (
-                                  <a
-                                    href={item.href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="footer-menu_item"
-                                    style={{ color: '#ffffff' }}
-                                  >
-                                    {item.label}
-                                  </a>
-                                ) : (
-                                  <Link href={item.href} className="footer-menu_item" style={{ color: '#ffffff' }}>
-                                    {item.label}
-                                  </Link>
-                                )}
-                              </li>
-                            ))}
+                          <ul className={`footer-menu-list ${column.items.some(i => i.socialEnabled) ? 'd-flex flex-column ' : ''}`}>
+                            {column.items && column.items.map((item, itemIndex) => {
+                              const iconMap = {
+                                facebook: "icon-fb",
+                                youtube: "icon-youtube",
+                                instagram: "icon-instagram",
+                                twitter: "icon-x",
+                                linkedin: "icon-in",
+                                whatsapp: "icon-whatsapp",
+                                tiktok: "icon-tiktok",
+                                pinterest: "icon-pinterest",
+                                amazon: "icon-amazon"
+                              };
+                              const iconClass = item.socialEnabled ? (iconMap[item.socialType] || "icon-share") : null;
+
+                              return (
+                                <li className={`text-caption-1 ${item.socialEnabled ? 'mb-3' : ''}`} key={itemIndex}>
+                                  {item.target === '_blank' ? (
+                                    <a
+                                      href={item.href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="footer-menu_item d-flex align-items-center gap-2"
+                                      style={{ color: '#ffffff' }}
+                                    >
+                                      {item.socialEnabled ? (
+                                        <i className={`${iconClass}`} style={{ fontSize: '18px' }}></i>
+                                      ) : (
+                                        item.label
+                                      )}
+                                    </a>
+                                  ) : (
+                                    <Link href={item.href} className="footer-menu_item d-flex align-items-center gap-2" style={{ color: '#ffffff' }}>
+                                      {item.socialEnabled ? (
+                                        <i className={`${iconClass}`} style={{ fontSize: '18px' }}></i>
+                                      ) : (
+                                        item.label
+                                      )}
+                                    </Link>
+                                  )}
+                                </li>
+                              );
+                            })}
                           </ul>
                         </div>
                       </div>
@@ -123,7 +146,7 @@ export default function FooterNew({
               <div className="row">
                 <div className="col-12">
                   <div className="footer-bottom-wrap" style={{ textAlign: 'center' }}>
-                    <p className="text-caption-1 " style={{ color: '#ffffff', margin: 0 ,width:'100%'}}>
+                    <p className="text-caption-1 " style={{ color: '#ffffff', margin: 0, width: '100%' }}>
                       {(footerData.bottomSection?.copyright || `© Cavios® ${new Date().getFullYear()}. Designed for performance.`).replace('{year}', new Date().getFullYear().toString())}
                     </p>
                   </div>
