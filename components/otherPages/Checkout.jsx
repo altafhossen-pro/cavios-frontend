@@ -7,7 +7,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatPrice } from "@/config/currency";
 import { getDivisions, getDistrictsByDivision, getUpazilasByDistrict, getDhakaCityAreas } from "@/features/address/api/addressApi";
-import { createOrder } from "@/features/order/api/orderApi";
+import { createOrder, createGuestOrder } from "@/features/order/api/orderApi";
 import { login } from "@/features/auth/api/authApi";
 
 export default function Checkout() {
@@ -255,13 +255,6 @@ export default function Checkout() {
     console.log('Place Order clicked');
     console.log('Form data:', { name, phone, division, district, upazila, dhakaArea, shippingAddress, cartProducts: cartProducts?.length });
     
-    // Check if user is logged in
-    if (!user) {
-      // Show login required modal
-      setShowLoginModal(true);
-      return;
-    }
-    
     // Clear previous submit error
     setErrors({});
     
@@ -278,83 +271,93 @@ export default function Checkout() {
       }, 100);
       return;
     }
+
+    // Prepare order items from cart
+    const orderItems = cartProducts.map(item => ({
+      product: item.productId,
+      variantSku: item.variantSku || '',
+      name: item.productTitle || 'Product',
+      image: item.productImage || '',
+      price: item.price || 0,
+      quantity: item.quantity || 1,
+      subtotal: (item.price || 0) * (item.quantity || 1),
+      variant: {
+        size: item.size || '',
+        color: item.color || '',
+        colorHexCode: item.colorHexCode || '',
+        sku: item.variantSku || '',
+        stockQuantity: item.stockQuantity || null,
+        stockStatus: 'in_stock'
+      }
+    }));
+    
+    // Prepare shipping address
+    const selectedDivisionName = selectedDivisionObj?.name || '';
+    const selectedDistrictName = selectedDistrictObj?.name || '';
+    let selectedUpazilaName = '';
+    let selectedAreaName = '';
+    
+    if (isDhakaDistrict && dhakaArea) {
+      const area = dhakaCityAreas.find(a => a.id === dhakaArea);
+      selectedAreaName = area?.name || '';
+    } else if (!isDhakaDistrict && upazila) {
+      const upz = upazilas.find(u => u.id === upazila);
+      selectedUpazilaName = upz?.name || '';
+    }
+    
+    const shippingAddressData = {
+      label: 'Home',
+      street: shippingAddress,
+      city: selectedDistrictName,
+      state: selectedDivisionName,
+      country: 'Bangladesh',
+      divisionId: division,
+      districtId: district,
+      upazilaId: isDhakaDistrict ? '' : upazila,
+      areaId: isDhakaDistrict ? dhakaArea : '',
+      division: selectedDivisionName,
+      district: selectedDistrictName,
+      upazila: selectedUpazilaName,
+      area: selectedAreaName
+    };
+    
+    // Prepare order data
+    const orderData = {
+      items: orderItems,
+      shippingAddress: shippingAddressData,
+      paymentMethod: 'cod',
+      paymentStatus: 'pending',
+      total: finalTotal,
+      discount: appliedDiscount,
+      shippingCost: shippingCharge,
+      orderNotes: notes || '',
+      orderSource: 'website',
+      // Store phone number from checkout form
+      manualOrderInfo: {
+        phone: phone || '',
+        name: name || '',
+        email: user?.email || '',
+        address: shippingAddress || ''
+      },
+      // For guest orders
+      guestInfo: !user ? {
+        name: name || '',
+        phone: phone || '',
+        email: '', // Guest email not collected in this form
+        address: shippingAddress || ''
+      } : null,
+      isGuestOrder: !user
+    };
     
     setIsSubmitting(true);
     
     try {
-      // Prepare order items from cart
-      const orderItems = cartProducts.map(item => ({
-        product: item.productId,
-        variantSku: item.variantSku || '',
-        name: item.productTitle || 'Product',
-        image: item.productImage || '',
-        price: item.price || 0,
-        quantity: item.quantity || 1,
-        subtotal: (item.price || 0) * (item.quantity || 1),
-        variant: {
-          size: item.size || '',
-          color: item.color || '',
-          colorHexCode: item.colorHexCode || '',
-          sku: item.variantSku || '',
-          stockQuantity: item.stockQuantity || null,
-          stockStatus: 'in_stock'
-        }
-      }));
+      // Create order using appropriate API
+      console.log(`Sending ${user ? 'user' : 'guest'} order data:`, orderData);
+      const response = user 
+        ? await createOrder(orderData)
+        : await createGuestOrder(orderData);
       
-      // Prepare shipping address
-      const selectedDivisionName = selectedDivisionObj?.name || '';
-      const selectedDistrictName = selectedDistrictObj?.name || '';
-      let selectedUpazilaName = '';
-      let selectedAreaName = '';
-      
-      if (isDhakaDistrict && dhakaArea) {
-        const area = dhakaCityAreas.find(a => a.id === dhakaArea);
-        selectedAreaName = area?.name || '';
-      } else if (!isDhakaDistrict && upazila) {
-        const upz = upazilas.find(u => u.id === upazila);
-        selectedUpazilaName = upz?.name || '';
-      }
-      
-      const shippingAddressData = {
-        label: 'Home',
-        street: shippingAddress,
-        city: selectedDistrictName,
-        state: selectedDivisionName,
-        country: 'Bangladesh',
-        divisionId: division,
-        districtId: district,
-        upazilaId: isDhakaDistrict ? '' : upazila,
-        areaId: isDhakaDistrict ? dhakaArea : '',
-        division: selectedDivisionName,
-        district: selectedDistrictName,
-        upazila: selectedUpazilaName,
-        area: selectedAreaName
-      };
-      
-      // Prepare order data
-      const orderData = {
-        items: orderItems,
-        shippingAddress: shippingAddressData,
-        paymentMethod: 'cod',
-        paymentStatus: 'pending',
-        total: finalTotal,
-        discount: appliedDiscount,
-        shippingCost: shippingCharge,
-        orderNotes: notes || '',
-        orderSource: 'website',
-        // Store phone number from checkout form (even if user is logged in)
-        // This allows using the phone number entered in checkout, not just user's saved phone
-        manualOrderInfo: {
-          phone: phone || '',
-          name: name || '',
-          email: user?.email || '',
-          address: shippingAddress || ''
-        }
-      };
-      
-      // Create order
-      console.log('Sending order data:', orderData);
-      const response = await createOrder(orderData);
       console.log('Order API response:', response);
       
       if (response.success && response.data) {
@@ -476,7 +479,7 @@ export default function Checkout() {
   }, [showLoginModal]);
 
   // Handle empty cart - must be after all hooks
-  if (!cartProducts || cartProducts.length === 0) {
+  if (!isSubmitting && (!cartProducts || cartProducts.length === 0)) {
     return (
       <section>
         <div className="container">
@@ -497,6 +500,38 @@ export default function Checkout() {
 
   return (
     <>
+      {isSubmitting && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div className="tf-loading-spinner" style={{
+            width: '50px',
+            height: '50px',
+            border: '3px solid #f3f3f3',
+            borderTop: '3px solid #3498db',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '15px'
+          }}></div>
+          <p style={{ fontWeight: '600', color: '#333' }}>Processing your order...</p>
+          <style jsx>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
       {/* Login Required Modal */}
       <div
         className="modal fade"
@@ -762,7 +797,7 @@ export default function Checkout() {
                             >
                               <option value="">Select Area*</option>
                               {dhakaCityAreas.map((area,index) => (
-                                <option key={index} value={area.id}>
+                                <option key={index} value={area._id || area.id}>
                                   {area.name}
                                 </option>
                               ))}
@@ -1069,6 +1104,19 @@ export default function Checkout() {
                       />
                     </div> */}
                   </div>
+                  {errors.submit && (
+                    <div className="mb-3" style={{
+                      padding: '12px',
+                      backgroundColor: '#fee',
+                      color: '#c33',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      textAlign: 'center',
+                      width: '100%'
+                    }}>
+                      {errors.submit}
+                    </div>
+                  )}
                   <button 
                     className="tf-btn btn-reset" 
                     type="submit"
@@ -1079,7 +1127,7 @@ export default function Checkout() {
                       cursor: isSubmitting ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {isSubmitting ? 'Placing Order...' : 'Place Order'}
+                    {isSubmitting ? 'Placing Order...' : (user ? 'Place Order' : 'Place Order as Guest')}
                   </button>
                 </form>
               </div>

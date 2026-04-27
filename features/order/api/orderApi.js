@@ -29,6 +29,29 @@ export const createOrder = async (orderData) => {
 };
 
 /**
+ * Create guest order
+ * @param {Object} orderData - Order data
+ * @returns {Promise} API response with order data
+ */
+export const createGuestOrder = async (orderData) => {
+  try {
+    const response = await apiClient.post('/order/guest', orderData);
+    return {
+      success: response.data.success,
+      data: response.data.data || null,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error('Error creating guest order:', error);
+    return {
+      success: false,
+      data: null,
+      message: error.response?.data?.message || error.message || 'Failed to create order',
+    };
+  }
+};
+
+/**
  * Get user orders
  * @returns {Promise} API response with orders list
  */
@@ -73,3 +96,25 @@ export const getOrderById = async (orderId) => {
   }
 };
 
+/**
+ * Track order (Public)
+ * @param {string} orderId - Friendly Order ID
+ * @returns {Promise} API response with order tracking data
+ */
+export const trackOrder = async (orderId) => {
+  try {
+    const response = await apiClient.get(`/order/track/${orderId}`);
+    return {
+      success: response.data.success,
+      data: response.data.data || null,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error('Error tracking order:', error);
+    return {
+      success: false,
+      data: null,
+      message: error.response?.data?.message || error.message || 'Failed to track order',
+    };
+  }
+};

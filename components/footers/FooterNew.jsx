@@ -89,7 +89,7 @@ export default function FooterNew({
                           {column.heading}
                         </div>
                         <div className="tf-collapse-content">
-                          <ul className={`footer-menu-list ${column.items.some(i => i.socialEnabled) ? 'd-flex flex-column flex-lg-row flex-wrap gap-2' : ''}`}>
+                          <ul className={`footer-menu-list ${column.items.some(i => i.socialEnabled) ? 'd-flex flex-row flex-wrap gap-3' : ''}`}>
                             {column.items && column.items.map((item, itemIndex) => {
                               const iconMap = {
                                 facebook: "icon-fb",
@@ -105,7 +105,7 @@ export default function FooterNew({
                               const iconClass = item.socialEnabled ? (iconMap[item.socialType] || "icon-share") : null;
 
                               return (
-                                <li className={`text-caption-1 ${item.socialEnabled ? 'mb-lg-0 mb-3' : ''}`} key={itemIndex}>
+                                <li className={`text-caption-1 ${item.socialEnabled ? 'mb-0' : ''}`} key={itemIndex}>
                                   {item.target === '_blank' ? (
                                     <a
                                       href={item.href}

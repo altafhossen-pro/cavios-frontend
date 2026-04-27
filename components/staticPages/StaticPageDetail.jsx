@@ -64,7 +64,7 @@ export default function StaticPageDetail({ page }) {
             <div className="col-lg-10 offset-lg-1">
               <div className="blog-content">
                 <div
-                  className="blog-text"
+                  className="rich-text"
                   dangerouslySetInnerHTML={{ __html: page.content }}
                 />
               </div>

@@ -4,7 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import MainHeader from "@/components/headers/MainHeader";
 import Footer from "@/components/footers/Footer";
-import { getOrderById } from "@/features/order/api/orderApi";
+import { getOrderById, trackOrder } from "@/features/order/api/orderApi";
 import { formatPrice } from "@/config/currency";
 
 // Inner component that uses useSearchParams
@@ -26,9 +26,12 @@ function OrderSuccessContent() {
 
     const fetchOrder = async () => {
       try {
-        const response = await getOrderById(orderId);
+        // Use trackOrder instead of getOrderById because trackOrder is public
+        // and accepts the friendly orderId string
+        const response = await trackOrder(orderId);
         if (response.success && response.data) {
-          setOrder(response.data);
+          // Response from trackOrder has { order, trackingSteps }
+          setOrder(response.data.order || response.data);
         } else {
           setError(response.message || "Order not found");
         }
@@ -88,10 +91,7 @@ function OrderSuccessContent() {
                     {error || "We couldn't find your order. Please check your order ID or contact support."}
                   </p>
                   <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                    <Link href="/my-account-orders" className="tf-btn btn-fill">
-                      <span className="text text-button">View My Orders</span>
-                    </Link>
-                    <Link href="/" className="tf-btn btn-white">
+                    <Link href="/" className="tf-btn btn-fill">
                       <span className="text text-button">Continue Shopping</span>
                     </Link>
                   </div>
@@ -226,10 +226,12 @@ function OrderSuccessContent() {
                   justifyContent: 'center',
                   flexWrap: 'wrap'
                 }}>
-                  <Link href="/my-account-orders" className="tf-btn btn-fill">
-                    <span className="text text-button">View My Orders</span>
-                  </Link>
-                  <Link href="/" className="tf-btn btn-white">
+                  {order.user && (
+                    <Link href="/my-account-orders" className="tf-btn btn-fill">
+                      <span className="text text-button">View My Orders</span>
+                    </Link>
+                  )}
+                  <Link href="/" className={order.user ? "tf-btn btn-white" : "tf-btn btn-fill"}>
                     <span className="text text-button">Continue Shopping</span>
                   </Link>
                 </div>
