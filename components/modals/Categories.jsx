@@ -62,7 +62,7 @@ export default function Categories() {
 
   const handleCategoryClick = (categorySlug, e) => {
     e.preventDefault();
-    router.push(`/shop?category=${categorySlug}`);
+    router.push(`/collections/${categorySlug}`);
     // Close the offcanvas
     const bootstrap = require("bootstrap");
     const offcanvasElement = document.getElementById("shopCategories");
@@ -128,7 +128,7 @@ export default function Categories() {
                   <ul className="facet-body">
                     <li>
                       <Link
-                        href={`/shop?category=${category.slug}`}
+                        href={`/collections/${category.slug}`}
                         className="item link"
                         onClick={(e) => handleCategoryClick(category.slug, e)}
                       >
@@ -148,7 +148,7 @@ export default function Categories() {
                       category.children.map((subcategory, subIndex) => (
                         <li key={subcategory._id || subIndex}>
                           <Link
-                            href={`/shop?category=${subcategory.slug}`}
+                            href={`/collections/${subcategory.slug}`}
                             className="item link"
                             onClick={(e) => handleCategoryClick(subcategory.slug, e)}
                           >

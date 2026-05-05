@@ -231,7 +231,7 @@ export default function MobileMenu() {
   }, [searchQuery]);
 
   const handleCategoryClick = (categorySlug) => {
-    router.push(`/shop?category=${categorySlug}`);
+    router.push(`/collections/${categorySlug}`);
   };
   return (
     <div className="offcanvas offcanvas-start canvas-mb" id="mobileMenu">
@@ -367,7 +367,7 @@ export default function MobileMenu() {
                                       <ul className="sub-nav-menu sub-menu-level-2">
                                         <li>
                                           <Link
-                                            href={`/shop?category=${category.slug}`}
+                                            href={`/collections/${category.slug}`}
                                             className={`sub-nav-link ${
                                               pathname.includes(category.slug) &&
                                               !category.childCategories.some((child) =>
@@ -387,7 +387,7 @@ export default function MobileMenu() {
                                         {category.childCategories.map((subcategory, subIndex) => (
                                           <li key={subcategory._id || subIndex}>
                                             <Link
-                                              href={`/shop?category=${subcategory.slug}`}
+                                              href={`/collections/${subcategory.slug}`}
                                               className={`sub-nav-link ${
                                                 pathname.includes(subcategory.slug)
                                                   ? "active"
@@ -407,7 +407,7 @@ export default function MobileMenu() {
                                   </>
                                 ) : (
                                   <Link
-                                    href={`/shop?category=${category.slug}`}
+                                    href={`/collections/${category.slug}`}
                                     className={`sub-nav-link ${
                                       pathname.includes(category.slug) ? "active" : ""
                                     }`}
@@ -491,7 +491,7 @@ export default function MobileMenu() {
                                           {subcategory.children.map((grandchild, grandIndex) => (
                                             <li key={grandchild._id || grandIndex}>
                                               <Link
-                                                href={`/shop?category=${grandchild.slug}`}
+                                                href={`/collections/${grandchild.slug}`}
                                                 className="sub-nav-link"
                                                 onClick={(e) => {
                                                   e.preventDefault();
@@ -507,7 +507,7 @@ export default function MobileMenu() {
                                     </>
                                   ) : (
                                     <Link
-                                      href={`/shop?category=${subcategory.slug}`}
+                                      href={`/collections/${subcategory.slug}`}
                                       className="sub-nav-link"
                                       onClick={(e) => {
                                         e.preventDefault();

@@ -66,7 +66,7 @@ export default function MainNav() {
   const handleCategoryClick = (categorySlug) => {
     setShowShopMenuDropdown(false);
     setHoveredCategory(null);
-    router.push(`/shop?category=${categorySlug}`);
+    router.push(`/collections/${categorySlug}`);
   };
 
   return (
@@ -96,7 +96,7 @@ export default function MainNav() {
                         <div key={category._id} className="col-lg-2">
                           <div className="mega-menu-item">
                             <Link
-                              href={`/shop?category=${category.slug}`}
+                              href={`/collections/${category.slug}`}
                               className="menu-heading"
                               onClick={(e) => {
                                 e.preventDefault();
@@ -110,7 +110,7 @@ export default function MainNav() {
                                 {category.childCategories.map((subcategory) => (
                                   <li key={subcategory._id || subcategory.slug} className="menu-item-li">
                                     <Link
-                                      href={`/shop?category=${subcategory.slug}`}
+                                      href={`/collections/${subcategory.slug}`}
                                       className="menu-link-text"
                                       onClick={(e) => {
                                         e.preventDefault();
@@ -173,7 +173,7 @@ export default function MainNav() {
                         <div key={subcategory._id || subcategory.slug} className="col-lg-2">
                           <div className="mega-menu-item">
                             <Link
-                              href={`/shop?category=${subcategory.slug}`}
+                              href={`/collections/${subcategory.slug}`}
                               className="menu-heading"
                               onClick={(e) => {
                                 e.preventDefault();
@@ -187,7 +187,7 @@ export default function MainNav() {
                                 {subcategory.children.map((grandchild) => (
                                   <li key={grandchild._id || grandchild.slug} className="menu-item-li">
                                     <Link
-                                      href={`/shop?category=${grandchild.slug}`}
+                                      href={`/collections/${grandchild.slug}`}
                                       className="menu-link-text"
                                       onClick={(e) => {
                                         e.preventDefault();

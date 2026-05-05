@@ -16,9 +16,14 @@ import Pagination from "@/components/common/Pagination";
 import ProductSkeleton from "./ProductSkeleton";
 
 // Inner component that uses useSearchParams
-function ShopProductsContent({ parentClass = "flat-spacing" }) {
+function ShopProductsContent({ 
+    parentClass = "flat-spacing", 
+    categorySlug: propCategorySlug,
+    initialProducts = [],
+    initialPagination = null
+}) {
     const searchParams = useSearchParams();
-    const categorySlug = searchParams.get("category");
+    const categorySlug = propCategorySlug || searchParams.get("category");
 
     // Lift sidebar state to parent to persist across FilterModal remounts
     const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
@@ -26,13 +31,13 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
     const [activeLayout, setActiveLayout] = useState(4);
     const [state, dispatch] = useReducer(reducer, {
         ...initialState,
-        filtered: [],
-        sorted: [],
+        filtered: initialProducts,
+        sorted: initialProducts,
     });
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [products, setProducts] = useState(initialProducts);
+    const [loading, setLoading] = useState(initialProducts.length === 0);
     const [error, setError] = useState(null);
-    const [pagination, setPagination] = useState({
+    const [pagination, setPagination] = useState(initialPagination || {
         page: 1,
         limit: 12,
         total: 0,
@@ -41,6 +46,7 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
     const [categoryId, setCategoryId] = useState(null);
     const priceTimeoutRef = useRef(null);
     const lastCategorySlugRef = useRef(null);
+    const isInitialMountRef = useRef(true);
 
     const {
         price,
@@ -104,6 +110,12 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
     useEffect(() => {
         // Don't run if categorySlug is not set yet (wait for URL params)
         if (categorySlug === undefined) return;
+
+        // Skip fetch on initial mount if we have initial products (SSR)
+        if (isInitialMountRef.current && initialProducts.length > 0) {
+            isInitialMountRef.current = false;
+            return;
+        }
 
         const fetchCategoryAndProducts = async () => {
             try {
@@ -514,7 +526,12 @@ function ShopProductsContent({ parentClass = "flat-spacing" }) {
 }
 
 // Wrapper component with Suspense boundary
-export default function ShopProducts({ parentClass = "flat-spacing" }) {
+export default function ShopProducts({ 
+    parentClass = "flat-spacing", 
+    categorySlug,
+    initialProducts = [],
+    initialPagination = null
+}) {
     return (
         <Suspense fallback={
             <section className={parentClass}>
@@ -527,7 +544,12 @@ export default function ShopProducts({ parentClass = "flat-spacing" }) {
                 </div>
             </section>
         }>
-            <ShopProductsContent parentClass={parentClass} />
+            <ShopProductsContent 
+                parentClass={parentClass} 
+                categorySlug={categorySlug} 
+                initialProducts={initialProducts}
+                initialPagination={initialPagination}
+            />
         </Suspense>
     );
 }
