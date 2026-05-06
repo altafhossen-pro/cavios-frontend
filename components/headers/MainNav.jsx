@@ -63,6 +63,15 @@ export default function MainNav() {
     fetchMenuConfig();
   }, []);
 
+  const normalizeLink = (href) => {
+    if (!href) return "/";
+    if (href.includes("/shop?category=")) {
+      const slug = href.split("/shop?category=")[1];
+      return `/collections/${slug}`;
+    }
+    return href;
+  };
+
   const handleCategoryClick = (categorySlug) => {
     setShowShopMenuDropdown(false);
     setHoveredCategory(null);
@@ -85,7 +94,7 @@ export default function MainNav() {
               onMouseEnter={() => setShowShopMenuDropdown(true)}
               onMouseLeave={() => setShowShopMenuDropdown(false)}
             >
-              <Link href={item.href} className="item-link">
+              <Link href={normalizeLink(item.href)} className="item-link">
                 {item.name}
               </Link>
               {showShopMenuDropdown && (
@@ -141,7 +150,7 @@ export default function MainNav() {
               key={`${item.type}-${index}`}
               className={`menu-item ${isActive ? "active" : ""}`}
             >
-              <Link href={item.href} className="item-link">
+              <Link href={normalizeLink(item.href)} className="item-link">
                 {item.name}
               </Link>
             </li>
@@ -162,7 +171,7 @@ export default function MainNav() {
               onMouseEnter={() => setHoveredCategory(item.categoryId)}
               onMouseLeave={() => setHoveredCategory(null)}
             >
-              <Link href={item.href} className="item-link">
+              <Link href={normalizeLink(item.href)} className="item-link">
                 {item.name}
               </Link>
               {hoveredCategory === item.categoryId && (
@@ -231,7 +240,7 @@ export default function MainNav() {
               }}
             >
               <Link 
-                href={item.href} 
+                href={normalizeLink(item.href)} 
                 className="item-link"
                 target={item.target || '_self'}
                 rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
@@ -260,7 +269,7 @@ export default function MainNav() {
                   {item.submenus.map((submenu, subIndex) => (
                     <li key={`submenu-${subIndex}`} className="menu-item-li" style={{ margin: 0 }}>
                       <Link
-                        href={submenu.href}
+                        href={normalizeLink(submenu.href)}
                         className="menu-link-text"
                         target={submenu.target || '_self'}
                         rel={submenu.target === '_blank' ? 'noopener noreferrer' : undefined}
@@ -294,7 +303,7 @@ export default function MainNav() {
             key={`${item.type}-${index}`}
             className={`menu-item ${isActive ? "active" : ""}`}
           >
-            <Link href={item.href} className="item-link">
+            <Link href={normalizeLink(item.href)} className="item-link">
               {item.name}
             </Link>
           </li>

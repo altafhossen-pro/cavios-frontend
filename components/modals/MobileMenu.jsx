@@ -230,6 +230,15 @@ export default function MobileMenu() {
     };
   }, [searchQuery]);
 
+  const normalizeLink = (href) => {
+    if (!href) return "/";
+    if (href.includes("/shop?category=")) {
+      const slug = href.split("/shop?category=")[1];
+      return `/collections/${slug}`;
+    }
+    return href;
+  };
+
   const handleCategoryClick = (categorySlug) => {
     router.push(`/collections/${categorySlug}`);
   };
@@ -561,7 +570,7 @@ export default function MobileMenu() {
                                       </a>
                                     ) : (
                                       <Link
-                                        href={submenu.href}
+                                        href={normalizeLink(submenu.href)}
                                         className="sub-nav-link"
                                       >
                                         {submenu.name}
@@ -589,7 +598,7 @@ export default function MobileMenu() {
                             </a>
                           ) : (
                             <Link
-                              href={item.href}
+                              href={normalizeLink(item.href)}
                               className={`mb-menu-link ${isActive ? "active" : ""}`}
                             >
                               <span>{item.name}</span>
@@ -603,7 +612,7 @@ export default function MobileMenu() {
                     return (
                       <li key={`${item.type}-${index}`} className="nav-mb-item">
                         <Link
-                          href={item.href}
+                          href={normalizeLink(item.href)}
                           className={`mb-menu-link ${isActive ? "active" : ""}`}
                         >
                           <span>{item.name}</span>

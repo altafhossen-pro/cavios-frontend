@@ -33,7 +33,7 @@ export async function generateMetadata({ searchParams }) {
             openGraph: {
               title: `${categoryName} || Cavios`,
               description: `Shop ${categoryName} products at Cavios`,
-              url: `${siteUrl}/shop?category=${categorySlug}`,
+              url: `${siteUrl}/collections/${categorySlug}`,
               type: "website",
             },
             twitter: {
@@ -42,7 +42,7 @@ export async function generateMetadata({ searchParams }) {
               description: `Shop ${categoryName} products at Cavios`,
             },
             alternates: {
-              canonical: `${siteUrl}/shop?category=${categorySlug}`,
+              canonical: `${siteUrl}/collections/${categorySlug}`,
             },
           };
         }
